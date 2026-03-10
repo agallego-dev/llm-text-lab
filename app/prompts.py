@@ -40,7 +40,7 @@ y explica brevemente por qué.
 
 Texto:
 {texto}
-"""
+""",
     }
 
     if modo not in prompts:
@@ -49,3 +49,21 @@ Texto:
         )
 
     return prompts[modo]
+
+
+def construir_prompt_pregunta(contexto: str, pregunta: str) -> str:
+    """Construye un prompt para responder una pregunta usando solo el contexto dado."""
+    return f"""
+Responde a la pregunta del usuario usando únicamente la información del contexto.
+Si el contexto no contiene la respuesta, di claramente que no aparece en el texto proporcionado.
+
+CONTEXTO:
+{contexto}
+
+PREGUNTA:
+{pregunta}
+
+FORMATO DE RESPUESTA:
+RESPUESTA:
+...
+"""
