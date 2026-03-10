@@ -1,0 +1,3 @@
+La inteligencia artificial generativa está transformando la manera en que las empresas trabajan con información.
+Permite resumir documentos, clasificar incidencias, responder preguntas sobre contenidos y automatizar procesos internos.
+Sin embargo, su valor real aparece cuando se integra correctamente con datos, aplicaciones y flujos de trabajo reales.
