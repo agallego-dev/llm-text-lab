@@ -16,3 +16,23 @@ def mostrar_titulo(titulo: str) -> None:
     print("\n" + "=" * 50)
     print(titulo.upper())
     print("=" * 50)
+
+
+def dividir_en_fragmentos(texto: str, max_palabras: int = 40) -> list[str]:
+    """Divide un texto en fragmentos según un número máximo de palabras."""
+    palabras = texto.split()
+    fragmentos = []
+
+    for i in range(0, len(palabras), max_palabras):
+        fragmento = " ".join(palabras[i:i + max_palabras])
+        fragmentos.append(fragmento)
+
+    return fragmentos
+
+
+def mostrar_fragmentos(fragmentos: list[str]) -> None:
+    """Muestra por consola los fragmentos numerados."""
+    mostrar_titulo("Fragmentos disponibles")
+
+    for i, fragmento in enumerate(fragmentos, start=1):
+        print(f"[{i}] {fragmento}\n")
