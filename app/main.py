@@ -1,30 +1,53 @@
 from openai import OpenAI
 from app.config import OPENAI_API_KEY
-from app.utils import leer_texto
+from app.utils import leer_texto, mostrar_titulo
+from app.prompts import construir_prompt
 
 
-def main() -> None:
-    texto = leer_texto("data/ejemplo.txt")
+MODOS_DISPONIBLES = ["resumen", "puntos_clave", "clasificacion", "tono", "todos"]
+MODOS_ANALISIS = ["resumen", "puntos_clave", "clasificacion", "tono"]
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
 
-    prompt = f"""
-    Lee el siguiente texto y devuelve:
-    1. Un resumen breve
-    2. Tres puntos clave
-    3. Una clasificación del tema principal
+def pedir_modo() -> str:
+    """Pide al usuario un modo de análisis válido."""
+    print("Modos disponibles:")
+    for modo in MODOS_DISPONIBLES:
+        print(f"- {modo}")
 
-    Texto:
-    {texto}
-    """
+    modo = input("\nElige un modo: ").strip().lower()
+
+    if modo not in MODOS_DISPONIBLES:
+        raise ValueError(
+            f"Modo no válido. Debe ser uno de: {', '.join(MODOS_DISPONIBLES)}"
+        )
+
+    return modo
+
+
+def ejecutar_analisis(client: OpenAI, texto: str, modo: str) -> None:
+    """Ejecuta un análisis y muestra el resultado."""
+    prompt = construir_prompt(texto, modo)
 
     response = client.responses.create(
         model="gpt-5-mini",
         input=prompt
     )
 
-    print("=== RESPUESTA DEL MODELO ===")
+    mostrar_titulo(f"Resultado del modo: {modo}")
     print(response.output_text)
+
+
+def main() -> None:
+    texto = leer_texto("data/ejemplo.txt")
+    modo = pedir_modo()
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+
+    if modo == "todos":
+        for modo_individual in MODOS_ANALISIS:
+            ejecutar_analisis(client, texto, modo_individual)
+    else:
+        ejecutar_analisis(client, texto, modo)
 
 
 if __name__ == "__main__":
