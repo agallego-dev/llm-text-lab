@@ -8,7 +8,7 @@ from app.utils import (
     mostrar_resultados_semanticos,
 )
 from app.prompts import construir_prompt, construir_prompt_pregunta
-from app.embeddings import similitud_coseno
+from app.embeddings import indexar_fragmentos, recuperar_fragmentos_semanticos
 
 
 MODOS_DISPONIBLES = [
@@ -71,39 +71,19 @@ def ejecutar_analisis(client: OpenAI, texto: str, modo: str) -> None:
     print(response.output_text)
 
 
-def obtener_embedding(client: OpenAI, texto: str) -> list[float]:
-    """Obtiene el embedding de un texto usando la API."""
-    response = client.embeddings.create(
-        model="text-embedding-3-small",
-        input=texto
-    )
-    return response.data[0].embedding
-
-
-def recuperar_fragmentos_semanticos(
+def ejecutar_pregunta_semantica(
     client: OpenAI,
-    pregunta: str,
-    fragmentos: list[str],
-    top_k: int = 2
-) -> list[tuple[int, str, float]]:
-    """Recupera los fragmentos más similares semánticamente a una pregunta."""
-    embedding_pregunta = obtener_embedding(client, pregunta)
-    resultados = []
-
-    for i, fragmento in enumerate(fragmentos):
-        embedding_fragmento = obtener_embedding(client, fragmento)
-        score = similitud_coseno(embedding_pregunta, embedding_fragmento)
-        resultados.append((i, fragmento, score))
-
-    resultados.sort(key=lambda x: x[2], reverse=True)
-    return resultados[:top_k]
-
-
-def ejecutar_pregunta_semantica(client: OpenAI, fragmentos: list[str]) -> None:
+    indice_vectorial: list[tuple[int, str, list[float]]]
+) -> None:
     """Responde una pregunta recuperando fragmentos por similitud semántica."""
     pregunta = input("\nEscribe tu pregunta sobre el texto: ").strip()
 
-    resultados = recuperar_fragmentos_semanticos(client, pregunta, fragmentos, top_k=2)
+    resultados = recuperar_fragmentos_semanticos(
+        client,
+        pregunta,
+        indice_vectorial,
+        top_k=2
+    )
     mostrar_resultados_semanticos(resultados)
 
     contexto = "\n\n".join([fragmento for _, fragmento, _ in resultados])
@@ -124,11 +104,16 @@ def main() -> None:
 
     mostrar_fragmentos(fragmentos)
 
-    modo = pedir_modo()
     client = OpenAI(api_key=OPENAI_API_KEY)
 
+    mostrar_titulo("Indexando fragmentos")
+    indice_vectorial = indexar_fragmentos(client, fragmentos)
+    print(f"Se han indexado {len(indice_vectorial)} fragmentos.\n")
+
+    modo = pedir_modo()
+
     if modo == "pregunta_semantica":
-        ejecutar_pregunta_semantica(client, fragmentos)
+        ejecutar_pregunta_semantica(client, indice_vectorial)
         return
 
     indice_fragmento = pedir_fragmento(len(fragmentos))
@@ -143,7 +128,7 @@ def main() -> None:
             ejecutar_analisis(client, texto_objetivo, modo_individual)
     else:
         ejecutar_analisis(client, texto_objetivo, modo)
-
+    
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,5 @@
 from math import sqrt
+from openai import OpenAI
 
 
 def producto_punto(v1: list[float], v2: list[float]) -> float:
@@ -19,3 +20,51 @@ def similitud_coseno(v1: list[float], v2: list[float]) -> float:
         return 0.0
 
     return producto_punto(v1, v2) / denominador
+
+
+def obtener_embedding(client: OpenAI, texto: str) -> list[float]:
+    """Obtiene el embedding de un texto usando la API."""
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texto
+    )
+    return response.data[0].embedding
+
+
+def indexar_fragmentos(
+    client: OpenAI,
+    fragmentos: list[str]
+) -> list[tuple[int, str, list[float]]]:
+    """
+    Calcula y guarda los embeddings de los fragmentos una sola vez.
+    Devuelve una lista de tuplas:
+    (indice, fragmento, embedding)
+    """
+    indice_vectorial = []
+
+    for i, fragmento in enumerate(fragmentos):
+        embedding = obtener_embedding(client, fragmento)
+        indice_vectorial.append((i, fragmento, embedding))
+
+    return indice_vectorial
+
+
+def recuperar_fragmentos_semanticos(
+    client: OpenAI,
+    pregunta: str,
+    indice_vectorial: list[tuple[int, str, list[float]]],
+    top_k: int = 2
+) -> list[tuple[int, str, float]]:
+    """
+    Recupera los fragmentos más similares semánticamente a una pregunta,
+    reutilizando embeddings ya calculados.
+    """
+    embedding_pregunta = obtener_embedding(client, pregunta)
+    resultados = []
+
+    for i, fragmento, embedding_fragmento in indice_vectorial:
+        score = similitud_coseno(embedding_pregunta, embedding_fragmento)
+        resultados.append((i, fragmento, score))
+
+    resultados.sort(key=lambda x: x[2], reverse=True)
+    return resultados[:top_k]
