@@ -5,10 +5,10 @@ from app.utils import (
     mostrar_titulo,
     dividir_en_fragmentos,
     mostrar_fragmentos,
-    buscar_fragmentos_relevantes,
-    mostrar_resultados_busqueda,
+    mostrar_resultados_semanticos,
 )
 from app.prompts import construir_prompt, construir_prompt_pregunta
+from app.embeddings import similitud_coseno
 
 
 MODOS_DISPONIBLES = [
@@ -17,7 +17,7 @@ MODOS_DISPONIBLES = [
     "clasificacion",
     "tono",
     "todos",
-    "pregunta",
+    "pregunta_semantica",
 ]
 MODOS_ANALISIS = ["resumen", "puntos_clave", "clasificacion", "tono"]
 
@@ -71,16 +71,40 @@ def ejecutar_analisis(client: OpenAI, texto: str, modo: str) -> None:
     print(response.output_text)
 
 
-def ejecutar_pregunta(client: OpenAI, fragmentos: list[str]) -> None:
-    """Recupera fragmentos relevantes y responde a una pregunta del usuario."""
+def obtener_embedding(client: OpenAI, texto: str) -> list[float]:
+    """Obtiene el embedding de un texto usando la API."""
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texto
+    )
+    return response.data[0].embedding
+
+
+def recuperar_fragmentos_semanticos(
+    client: OpenAI,
+    pregunta: str,
+    fragmentos: list[str],
+    top_k: int = 2
+) -> list[tuple[int, str, float]]:
+    """Recupera los fragmentos más similares semánticamente a una pregunta."""
+    embedding_pregunta = obtener_embedding(client, pregunta)
+    resultados = []
+
+    for i, fragmento in enumerate(fragmentos):
+        embedding_fragmento = obtener_embedding(client, fragmento)
+        score = similitud_coseno(embedding_pregunta, embedding_fragmento)
+        resultados.append((i, fragmento, score))
+
+    resultados.sort(key=lambda x: x[2], reverse=True)
+    return resultados[:top_k]
+
+
+def ejecutar_pregunta_semantica(client: OpenAI, fragmentos: list[str]) -> None:
+    """Responde una pregunta recuperando fragmentos por similitud semántica."""
     pregunta = input("\nEscribe tu pregunta sobre el texto: ").strip()
 
-    resultados = buscar_fragmentos_relevantes(pregunta, fragmentos, top_k=2)
-    mostrar_resultados_busqueda(resultados)
-
-    if not resultados:
-        print("No hay contexto suficiente para responder con seguridad.")
-        return
+    resultados = recuperar_fragmentos_semanticos(client, pregunta, fragmentos, top_k=2)
+    mostrar_resultados_semanticos(resultados)
 
     contexto = "\n\n".join([fragmento for _, fragmento, _ in resultados])
     prompt = construir_prompt_pregunta(contexto, pregunta)
@@ -103,8 +127,8 @@ def main() -> None:
     modo = pedir_modo()
     client = OpenAI(api_key=OPENAI_API_KEY)
 
-    if modo == "pregunta":
-        ejecutar_pregunta(client, fragmentos)
+    if modo == "pregunta_semantica":
+        ejecutar_pregunta_semantica(client, fragmentos)
         return
 
     indice_fragmento = pedir_fragmento(len(fragmentos))
