@@ -91,33 +91,41 @@ def ejecutar_pregunta_semantica(
     client: OpenAI,
     indice_vectorial: list[tuple[int, str, list[float]]]
 ) -> None:
-    """Responde una pregunta recuperando fragmentos por similitud semántica."""
-    while True:
-        pregunta = input("\nEscribe tu pregunta sobre el texto: ").strip()
+    """Permite hacer varias preguntas semánticas sobre el mismo texto."""
+    mostrar_titulo("Modo pregunta semántica")
+    print("Escribe tu pregunta sobre el documento.")
+    print("Escribe 'salir' para terminar este modo.\n")
 
-        if pregunta:
+    while True:
+        pregunta = input("Pregunta: ").strip()
+
+        if not pregunta:
+            print("No se ha escrito ninguna pregunta. Inténtalo de nuevo.\n")
+            continue
+
+        if pregunta.lower() == "salir":
+            print("\nSaliendo del modo pregunta semántica.\n")
             break
 
-        print("No se ha escrito ninguna pregunta. Inténtalo de nuevo.")
+        resultados = recuperar_fragmentos_semanticos(
+            client,
+            pregunta,
+            indice_vectorial,
+            top_k=2
+        )
+        mostrar_resultados_semanticos(resultados)
 
-    resultados = recuperar_fragmentos_semanticos(
-        client,
-        pregunta,
-        indice_vectorial,
-        top_k=2
-    )
-    mostrar_resultados_semanticos(resultados)
+        contexto = "\n\n".join([fragmento for _, fragmento, _ in resultados])
+        prompt = construir_prompt_pregunta(contexto, pregunta)
 
-    contexto = "\n\n".join([fragmento for _, fragmento, _ in resultados])
-    prompt = construir_prompt_pregunta(contexto, pregunta)
+        response = client.responses.create(
+            model="gpt-5-mini",
+            input=prompt
+        )
 
-    response = client.responses.create(
-        model="gpt-5-mini",
-        input=prompt
-    )
-
-    mostrar_titulo("Respuesta a la pregunta")
-    print(response.output_text)
+        mostrar_titulo("Respuesta a la pregunta")
+        print(response.output_text)
+        print()
 
 
 def preparar_indice_vectorial(
