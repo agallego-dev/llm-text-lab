@@ -27,6 +27,8 @@ MODOS_MENU = [
     "tono",
     "todos",
     "pregunta_semantica",
+    "ver_historial",
+    "guardar_historial",
     "cambiar_documento",
     "salir",
 ]
@@ -91,7 +93,8 @@ def ejecutar_analisis(client: OpenAI, texto: str, modo: str) -> None:
 
 def ejecutar_pregunta_semantica(
     client: OpenAI,
-    indice_vectorial: list[tuple[int, str, list[float]]]
+    indice_vectorial: list[tuple[int, str, list[float]]],
+    historial: list[dict]
 ) -> None:
     """Permite hacer varias preguntas semánticas sobre el mismo texto."""
     mostrar_titulo("Modo pregunta semántica")
@@ -125,9 +128,68 @@ def ejecutar_pregunta_semantica(
             input=prompt
         )
 
+        respuesta = response.output_text
+
+        historial.append(
+            {
+                "pregunta": pregunta,
+                "resultados": resultados,
+                "respuesta": respuesta,
+            }
+        )
+
         mostrar_titulo("Respuesta a la pregunta")
-        print(response.output_text)
+        print(respuesta)
         print()
+
+
+def mostrar_historial(historial: list[dict]) -> None:
+    """Muestra el historial de preguntas y respuestas de la sesión."""
+    mostrar_titulo("Historial de la sesión")
+
+    if not historial:
+        print("Todavía no hay preguntas registradas.\n")
+        return
+
+    for i, item in enumerate(historial, start=1):
+        print(f"[{i}] Pregunta: {item['pregunta']}")
+        print("Fragmentos recuperados:")
+
+        for indice, fragmento, score in item["resultados"]:
+            print(f"  - [{indice + 1}] (score: {score:.4f}) {fragmento}")
+
+        print("Respuesta:")
+        print(item["respuesta"])
+        print("-" * 50)
+
+
+def guardar_historial_en_txt(historial: list[dict], ruta_salida: str) -> None:
+    """Guarda el historial de la sesión en un archivo de texto."""
+    path = Path(ruta_salida)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    lineas = []
+
+    if not historial:
+        lineas.append("No hay preguntas registradas en esta sesión.\n")
+    else:
+        lineas.append("HISTORIAL DE LA SESIÓN\n")
+        lineas.append("=" * 50 + "\n")
+
+        for i, item in enumerate(historial, start=1):
+            lineas.append(f"[{i}] Pregunta: {item['pregunta']}\n")
+            lineas.append("Fragmentos recuperados:\n")
+
+            for indice, fragmento, score in item["resultados"]:
+                lineas.append(
+                    f"  - [{indice + 1}] (score: {score:.4f}) {fragmento}\n"
+                )
+
+            lineas.append("Respuesta:\n")
+            lineas.append(f"{item['respuesta']}\n")
+            lineas.append("-" * 50 + "\n")
+
+    path.write_text("".join(lineas), encoding="utf-8")
 
 
 def preparar_indice_vectorial(
@@ -159,7 +221,9 @@ def preparar_indice_vectorial(
     return indice_vectorial
 
 
-def cargar_documento(client: OpenAI) -> tuple[str, str, list[str], list[tuple[int, str, list[float]]]]:
+def cargar_documento(
+    client: OpenAI
+) -> tuple[str, str, list[str], list[tuple[int, str, list[float]]]]:
     """Carga un documento, sus fragmentos y su índice vectorial."""
     ruta_documento = pedir_archivo_txt("data")
     ruta_indice = construir_ruta_indice(ruta_documento)
@@ -178,9 +242,10 @@ def cargar_documento(client: OpenAI) -> tuple[str, str, list[str], list[tuple[in
 
 def main() -> None:
     client = OpenAI(api_key=OPENAI_API_KEY)
+    historial: list[dict] = []
 
     documento_cargado = cargar_documento(client)
-    _, texto, fragmentos, indice_vectorial = documento_cargado
+    ruta_documento, texto, fragmentos, indice_vectorial = documento_cargado
 
     while True:
         modo = pedir_modo_menu()
@@ -191,11 +256,22 @@ def main() -> None:
 
         if modo == "cambiar_documento":
             documento_cargado = cargar_documento(client)
-            _, texto, fragmentos, indice_vectorial = documento_cargado
+            ruta_documento, texto, fragmentos, indice_vectorial = documento_cargado
             continue
 
         if modo == "pregunta_semantica":
-            ejecutar_pregunta_semantica(client, indice_vectorial)
+            ejecutar_pregunta_semantica(client, indice_vectorial, historial)
+            continue
+
+        if modo == "ver_historial":
+            mostrar_historial(historial)
+            continue
+
+        if modo == "guardar_historial":
+            nombre_base = Path(ruta_documento).stem
+            ruta_salida = f"exports/{nombre_base}_historial.txt"
+            guardar_historial_en_txt(historial, ruta_salida)
+            print(f"\nHistorial guardado en: {ruta_salida}\n")
             continue
 
         indice_fragmento = pedir_fragmento(len(fragmentos))
