@@ -37,39 +37,41 @@ def construir_ruta_indice(ruta_documento: str) -> str:
 
 
 def pedir_modo() -> str:
-    """Pide al usuario un modo de análisis válido."""
-    print("Modos disponibles:")
-    for modo in MODOS_DISPONIBLES:
-        print(f"- {modo}")
+    """Pide al usuario un modo de análisis válido, con reintento."""
+    while True:
+        print("Modos disponibles:")
+        for modo in MODOS_DISPONIBLES:
+            print(f"- {modo}")
 
-    modo = input("\nElige un modo: ").strip().lower()
+        modo = input("\nElige un modo: ").strip().lower()
 
-    if modo not in MODOS_DISPONIBLES:
-        raise ValueError(
-            f"Modo no válido. Debe ser uno de: {', '.join(MODOS_DISPONIBLES)}"
-        )
+        if modo in MODOS_DISPONIBLES:
+            return modo
 
-    return modo
+        print(f"\nModo no válido. Debe ser uno de: {', '.join(MODOS_DISPONIBLES)}\n")
 
 
 def pedir_fragmento(num_fragmentos: int) -> int | None:
-    """Permite elegir un fragmento concreto o todos."""
-    seleccion = input(
-        f"\nElige un fragmento (1-{num_fragmentos}) o escribe 'todos': "
-    ).strip().lower()
+    """Permite elegir un fragmento concreto o todos, con reintento."""
+    while True:
+        seleccion = input(
+            f"\nElige un fragmento (1-{num_fragmentos}) o escribe 'todos': "
+        ).strip().lower()
 
-    if seleccion == "todos":
-        return None
+        if seleccion == "todos":
+            return None
 
-    if not seleccion.isdigit():
-        raise ValueError("Debes escribir un número válido o 'todos'.")
+        if not seleccion.isdigit():
+            print("Debes escribir un número válido o 'todos'.")
+            continue
 
-    indice = int(seleccion)
+        indice = int(seleccion)
 
-    if indice < 1 or indice > num_fragmentos:
-        raise ValueError("El número de fragmento está fuera de rango.")
+        if indice < 1 or indice > num_fragmentos:
+            print("El número de fragmento está fuera de rango.")
+            continue
 
-    return indice - 1
+        return indice - 1
 
 
 def ejecutar_analisis(client: OpenAI, texto: str, modo: str) -> None:
@@ -90,7 +92,13 @@ def ejecutar_pregunta_semantica(
     indice_vectorial: list[tuple[int, str, list[float]]]
 ) -> None:
     """Responde una pregunta recuperando fragmentos por similitud semántica."""
-    pregunta = input("\nEscribe tu pregunta sobre el texto: ").strip()
+    while True:
+        pregunta = input("\nEscribe tu pregunta sobre el texto: ").strip()
+
+        if pregunta:
+            break
+
+        print("No se ha escrito ninguna pregunta. Inténtalo de nuevo.")
 
     resultados = recuperar_fragmentos_semanticos(
         client,
@@ -177,4 +185,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except FileNotFoundError as e:
+        print(f"\nError de archivo: {e}")
+    except ValueError as e:
+        print(f"\nError de validación: {e}")
+    except Exception as e:
+        print(f"\nHa ocurrido un error inesperado: {e}")

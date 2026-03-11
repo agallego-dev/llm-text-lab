@@ -57,25 +57,28 @@ def listar_archivos_txt(directorio: str) -> list[Path]:
 
 
 def pedir_archivo_txt(directorio: str = "data") -> str:
-    """Muestra los archivos .txt disponibles y permite elegir uno."""
+    """Muestra los archivos .txt disponibles y permite elegir uno, con reintento."""
     archivos = listar_archivos_txt(directorio)
 
     if not archivos:
         raise FileNotFoundError(f"No hay archivos .txt en el directorio: {directorio}")
 
-    mostrar_titulo("Archivos disponibles")
+    while True:
+        mostrar_titulo("Archivos disponibles")
 
-    for i, archivo in enumerate(archivos, start=1):
-        print(f"[{i}] {archivo.name}")
+        for i, archivo in enumerate(archivos, start=1):
+            print(f"[{i}] {archivo.name}")
 
-    seleccion = input("\nElige un archivo por número: ").strip()
+        seleccion = input("\nElige un archivo por número: ").strip()
 
-    if not seleccion.isdigit():
-        raise ValueError("Debes introducir un número válido.")
+        if not seleccion.isdigit():
+            print("Entrada no válida. Debes introducir un número.\n")
+            continue
 
-    indice = int(seleccion)
+        indice = int(seleccion)
 
-    if indice < 1 or indice > len(archivos):
-        raise ValueError("El número elegido está fuera de rango.")
+        if indice < 1 or indice > len(archivos):
+            print("Número fuera de rango. Inténtalo de nuevo.\n")
+            continue
 
-    return str(archivos[indice - 1])
+        return str(archivos[indice - 1])

@@ -93,7 +93,13 @@ def cargar_indice_vectorial(
     if not path.exists():
         return None
 
-    datos = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        datos = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    if "hash_documento" not in datos or "fragmentos" not in datos:
+        return None
 
     hash_documento = datos["hash_documento"]
     fragmentos = [
