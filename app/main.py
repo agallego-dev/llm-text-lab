@@ -1,3 +1,4 @@
+from pathlib import Path
 from openai import OpenAI
 from app.config import OPENAI_API_KEY
 from app.utils import (
@@ -6,6 +7,7 @@ from app.utils import (
     dividir_en_fragmentos,
     mostrar_fragmentos,
     mostrar_resultados_semanticos,
+    pedir_archivo_txt,
 )
 from app.prompts import construir_prompt, construir_prompt_pregunta
 from app.embeddings import (
@@ -26,7 +28,12 @@ MODOS_DISPONIBLES = [
     "pregunta_semantica",
 ]
 MODOS_ANALISIS = ["resumen", "puntos_clave", "clasificacion", "tono"]
-RUTA_INDICE = "cache/indice_vectorial.json"
+
+
+def construir_ruta_indice(ruta_documento: str) -> str:
+    """Construye una ruta de caché específica para cada documento."""
+    nombre_base = Path(ruta_documento).stem
+    return f"cache/{nombre_base}_indice_vectorial.json"
 
 
 def pedir_modo() -> str:
@@ -108,11 +115,12 @@ def ejecutar_pregunta_semantica(
 def preparar_indice_vectorial(
     client: OpenAI,
     texto: str,
-    fragmentos: list[str]
+    fragmentos: list[str],
+    ruta_indice: str
 ) -> list[tuple[int, str, list[float]]]:
     """Carga el índice desde caché si sigue siendo válido; si no, lo regenera."""
     hash_actual = calcular_hash_texto(texto)
-    cache = cargar_indice_vectorial(RUTA_INDICE)
+    cache = cargar_indice_vectorial(ruta_indice)
 
     if cache is not None:
         hash_guardado, indice_vectorial = cache
@@ -127,20 +135,26 @@ def preparar_indice_vectorial(
 
     mostrar_titulo("Indexando fragmentos")
     indice_vectorial = indexar_fragmentos(client, fragmentos)
-    guardar_indice_vectorial(indice_vectorial, RUTA_INDICE, hash_actual)
+    guardar_indice_vectorial(indice_vectorial, ruta_indice, hash_actual)
     print(f"Se han indexado y guardado {len(indice_vectorial)} fragmentos.\n")
 
     return indice_vectorial
 
 
 def main() -> None:
-    texto = leer_texto("data/ejemplo.txt")
+    ruta_documento = pedir_archivo_txt("data")
+    ruta_indice = construir_ruta_indice(ruta_documento)
+
+    mostrar_titulo("Documento seleccionado")
+    print(ruta_documento)
+
+    texto = leer_texto(ruta_documento)
     fragmentos = dividir_en_fragmentos(texto, max_palabras=20)
 
     mostrar_fragmentos(fragmentos)
 
     client = OpenAI(api_key=OPENAI_API_KEY)
-    indice_vectorial = preparar_indice_vectorial(client, texto, fragmentos)
+    indice_vectorial = preparar_indice_vectorial(client, texto, fragmentos, ruta_indice)
 
     modo = pedir_modo()
 

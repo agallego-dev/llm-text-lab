@@ -44,3 +44,38 @@ def mostrar_resultados_semanticos(resultados: list[tuple[int, str, float]]) -> N
 
     for indice, fragmento, score in resultados:
         print(f"[{indice + 1}] (score: {score:.4f}) {fragmento}\n")
+
+
+def listar_archivos_txt(directorio: str) -> list[Path]:
+    """Lista los archivos .txt de un directorio."""
+    path = Path(directorio)
+
+    if not path.exists():
+        raise FileNotFoundError(f"No existe el directorio: {directorio}")
+
+    return sorted(path.glob("*.txt"))
+
+
+def pedir_archivo_txt(directorio: str = "data") -> str:
+    """Muestra los archivos .txt disponibles y permite elegir uno."""
+    archivos = listar_archivos_txt(directorio)
+
+    if not archivos:
+        raise FileNotFoundError(f"No hay archivos .txt en el directorio: {directorio}")
+
+    mostrar_titulo("Archivos disponibles")
+
+    for i, archivo in enumerate(archivos, start=1):
+        print(f"[{i}] {archivo.name}")
+
+    seleccion = input("\nElige un archivo por número: ").strip()
+
+    if not seleccion.isdigit():
+        raise ValueError("Debes introducir un número válido.")
+
+    indice = int(seleccion)
+
+    if indice < 1 or indice > len(archivos):
+        raise ValueError("El número elegido está fuera de rango.")
+
+    return str(archivos[indice - 1])
