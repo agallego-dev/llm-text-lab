@@ -13,6 +13,7 @@ from app.embeddings import (
     recuperar_fragmentos_semanticos,
     guardar_indice_vectorial,
     cargar_indice_vectorial,
+    calcular_hash_texto,
 )
 
 
@@ -106,19 +107,27 @@ def ejecutar_pregunta_semantica(
 
 def preparar_indice_vectorial(
     client: OpenAI,
+    texto: str,
     fragmentos: list[str]
 ) -> list[tuple[int, str, list[float]]]:
-    """Carga el índice vectorial desde JSON o lo crea si no existe."""
-    indice_vectorial = cargar_indice_vectorial(RUTA_INDICE)
+    """Carga el índice desde caché si sigue siendo válido; si no, lo regenera."""
+    hash_actual = calcular_hash_texto(texto)
+    cache = cargar_indice_vectorial(RUTA_INDICE)
 
-    if indice_vectorial is not None:
-        mostrar_titulo("Índice vectorial cargado desde caché")
-        print(f"Se han cargado {len(indice_vectorial)} fragmentos desde JSON.\n")
-        return indice_vectorial
+    if cache is not None:
+        hash_guardado, indice_vectorial = cache
+
+        if hash_guardado == hash_actual:
+            mostrar_titulo("Índice vectorial cargado desde caché")
+            print(f"Se han cargado {len(indice_vectorial)} fragmentos desde JSON.\n")
+            return indice_vectorial
+
+        mostrar_titulo("Caché desactualizada")
+        print("El documento ha cambiado. Se regenerará el índice.\n")
 
     mostrar_titulo("Indexando fragmentos")
     indice_vectorial = indexar_fragmentos(client, fragmentos)
-    guardar_indice_vectorial(indice_vectorial, RUTA_INDICE)
+    guardar_indice_vectorial(indice_vectorial, RUTA_INDICE, hash_actual)
     print(f"Se han indexado y guardado {len(indice_vectorial)} fragmentos.\n")
 
     return indice_vectorial
@@ -131,7 +140,7 @@ def main() -> None:
     mostrar_fragmentos(fragmentos)
 
     client = OpenAI(api_key=OPENAI_API_KEY)
-    indice_vectorial = preparar_indice_vectorial(client, fragmentos)
+    indice_vectorial = preparar_indice_vectorial(client, texto, fragmentos)
 
     modo = pedir_modo()
 

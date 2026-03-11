@@ -1,4 +1,5 @@
 import json
+import hashlib
 from math import sqrt
 from pathlib import Path
 from openai import OpenAI
@@ -33,6 +34,11 @@ def obtener_embedding(client: OpenAI, texto: str) -> list[float]:
     return response.data[0].embedding
 
 
+def calcular_hash_texto(texto: str) -> str:
+    """Calcula un hash SHA-256 del texto."""
+    return hashlib.sha256(texto.encode("utf-8")).hexdigest()
+
+
 def indexar_fragmentos(
     client: OpenAI,
     fragmentos: list[str]
@@ -53,20 +59,24 @@ def indexar_fragmentos(
 
 def guardar_indice_vectorial(
     indice_vectorial: list[tuple[int, str, list[float]]],
-    ruta: str
+    ruta: str,
+    hash_documento: str
 ) -> None:
-    """Guarda el índice vectorial en un archivo JSON."""
+    """Guarda el índice vectorial y el hash del documento en un archivo JSON."""
     path = Path(ruta)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    datos = [
-        {
-            "indice": indice,
-            "fragmento": fragmento,
-            "embedding": embedding
-        }
-        for indice, fragmento, embedding in indice_vectorial
-    ]
+    datos = {
+        "hash_documento": hash_documento,
+        "fragmentos": [
+            {
+                "indice": indice,
+                "fragmento": fragmento,
+                "embedding": embedding
+            }
+            for indice, fragmento, embedding in indice_vectorial
+        ]
+    }
 
     path.write_text(
         json.dumps(datos, ensure_ascii=False, indent=2),
@@ -74,8 +84,10 @@ def guardar_indice_vectorial(
     )
 
 
-def cargar_indice_vectorial(ruta: str) -> list[tuple[int, str, list[float]]] | None:
-    """Carga el índice vectorial desde un archivo JSON si existe."""
+def cargar_indice_vectorial(
+    ruta: str
+) -> tuple[str, list[tuple[int, str, list[float]]]] | None:
+    """Carga el hash y el índice vectorial desde un archivo JSON si existe."""
     path = Path(ruta)
 
     if not path.exists():
@@ -83,10 +95,13 @@ def cargar_indice_vectorial(ruta: str) -> list[tuple[int, str, list[float]]] | N
 
     datos = json.loads(path.read_text(encoding="utf-8"))
 
-    return [
+    hash_documento = datos["hash_documento"]
+    fragmentos = [
         (item["indice"], item["fragmento"], item["embedding"])
-        for item in datos
+        for item in datos["fragmentos"]
     ]
+
+    return hash_documento, fragmentos
 
 
 def recuperar_fragmentos_semanticos(
