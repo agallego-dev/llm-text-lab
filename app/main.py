@@ -8,7 +8,12 @@ from app.utils import (
     mostrar_resultados_semanticos,
 )
 from app.prompts import construir_prompt, construir_prompt_pregunta
-from app.embeddings import indexar_fragmentos, recuperar_fragmentos_semanticos
+from app.embeddings import (
+    indexar_fragmentos,
+    recuperar_fragmentos_semanticos,
+    guardar_indice_vectorial,
+    cargar_indice_vectorial,
+)
 
 
 MODOS_DISPONIBLES = [
@@ -20,6 +25,7 @@ MODOS_DISPONIBLES = [
     "pregunta_semantica",
 ]
 MODOS_ANALISIS = ["resumen", "puntos_clave", "clasificacion", "tono"]
+RUTA_INDICE = "cache/indice_vectorial.json"
 
 
 def pedir_modo() -> str:
@@ -98,6 +104,26 @@ def ejecutar_pregunta_semantica(
     print(response.output_text)
 
 
+def preparar_indice_vectorial(
+    client: OpenAI,
+    fragmentos: list[str]
+) -> list[tuple[int, str, list[float]]]:
+    """Carga el índice vectorial desde JSON o lo crea si no existe."""
+    indice_vectorial = cargar_indice_vectorial(RUTA_INDICE)
+
+    if indice_vectorial is not None:
+        mostrar_titulo("Índice vectorial cargado desde caché")
+        print(f"Se han cargado {len(indice_vectorial)} fragmentos desde JSON.\n")
+        return indice_vectorial
+
+    mostrar_titulo("Indexando fragmentos")
+    indice_vectorial = indexar_fragmentos(client, fragmentos)
+    guardar_indice_vectorial(indice_vectorial, RUTA_INDICE)
+    print(f"Se han indexado y guardado {len(indice_vectorial)} fragmentos.\n")
+
+    return indice_vectorial
+
+
 def main() -> None:
     texto = leer_texto("data/ejemplo.txt")
     fragmentos = dividir_en_fragmentos(texto, max_palabras=20)
@@ -105,10 +131,7 @@ def main() -> None:
     mostrar_fragmentos(fragmentos)
 
     client = OpenAI(api_key=OPENAI_API_KEY)
-
-    mostrar_titulo("Indexando fragmentos")
-    indice_vectorial = indexar_fragmentos(client, fragmentos)
-    print(f"Se han indexado {len(indice_vectorial)} fragmentos.\n")
+    indice_vectorial = preparar_indice_vectorial(client, fragmentos)
 
     modo = pedir_modo()
 
@@ -128,7 +151,7 @@ def main() -> None:
             ejecutar_analisis(client, texto_objetivo, modo_individual)
     else:
         ejecutar_analisis(client, texto_objetivo, modo)
-    
+
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,6 @@
+import json
 from math import sqrt
+from pathlib import Path
 from openai import OpenAI
 
 
@@ -47,6 +49,44 @@ def indexar_fragmentos(
         indice_vectorial.append((i, fragmento, embedding))
 
     return indice_vectorial
+
+
+def guardar_indice_vectorial(
+    indice_vectorial: list[tuple[int, str, list[float]]],
+    ruta: str
+) -> None:
+    """Guarda el índice vectorial en un archivo JSON."""
+    path = Path(ruta)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    datos = [
+        {
+            "indice": indice,
+            "fragmento": fragmento,
+            "embedding": embedding
+        }
+        for indice, fragmento, embedding in indice_vectorial
+    ]
+
+    path.write_text(
+        json.dumps(datos, ensure_ascii=False, indent=2),
+        encoding="utf-8"
+    )
+
+
+def cargar_indice_vectorial(ruta: str) -> list[tuple[int, str, list[float]]] | None:
+    """Carga el índice vectorial desde un archivo JSON si existe."""
+    path = Path(ruta)
+
+    if not path.exists():
+        return None
+
+    datos = json.loads(path.read_text(encoding="utf-8"))
+
+    return [
+        (item["indice"], item["fragmento"], item["embedding"])
+        for item in datos
+    ]
 
 
 def recuperar_fragmentos_semanticos(
