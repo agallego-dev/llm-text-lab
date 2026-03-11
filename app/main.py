@@ -19,15 +19,17 @@ from app.embeddings import (
 )
 
 
-MODOS_DISPONIBLES = [
+MODOS_ANALISIS = ["resumen", "puntos_clave", "clasificacion", "tono"]
+MODOS_MENU = [
     "resumen",
     "puntos_clave",
     "clasificacion",
     "tono",
     "todos",
     "pregunta_semantica",
+    "cambiar_documento",
+    "salir",
 ]
-MODOS_ANALISIS = ["resumen", "puntos_clave", "clasificacion", "tono"]
 
 
 def construir_ruta_indice(ruta_documento: str) -> str:
@@ -36,19 +38,19 @@ def construir_ruta_indice(ruta_documento: str) -> str:
     return f"cache/{nombre_base}_indice_vectorial.json"
 
 
-def pedir_modo() -> str:
-    """Pide al usuario un modo de análisis válido, con reintento."""
+def pedir_modo_menu() -> str:
+    """Pide un modo del menú principal del documento, con reintento."""
     while True:
-        print("Modos disponibles:")
-        for modo in MODOS_DISPONIBLES:
+        print("Opciones disponibles:")
+        for modo in MODOS_MENU:
             print(f"- {modo}")
 
-        modo = input("\nElige un modo: ").strip().lower()
+        modo = input("\nElige una opción: ").strip().lower()
 
-        if modo in MODOS_DISPONIBLES:
+        if modo in MODOS_MENU:
             return modo
 
-        print(f"\nModo no válido. Debe ser uno de: {', '.join(MODOS_DISPONIBLES)}\n")
+        print(f"\nOpción no válida. Debe ser una de: {', '.join(MODOS_MENU)}\n")
 
 
 def pedir_fragmento(num_fragmentos: int) -> int | None:
@@ -157,7 +159,8 @@ def preparar_indice_vectorial(
     return indice_vectorial
 
 
-def main() -> None:
+def cargar_documento(client: OpenAI) -> tuple[str, str, list[str], list[tuple[int, str, list[float]]]]:
+    """Carga un documento, sus fragmentos y su índice vectorial."""
     ruta_documento = pedir_archivo_txt("data")
     ruta_indice = construir_ruta_indice(ruta_documento)
 
@@ -169,27 +172,44 @@ def main() -> None:
 
     mostrar_fragmentos(fragmentos)
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
     indice_vectorial = preparar_indice_vectorial(client, texto, fragmentos, ruta_indice)
+    return ruta_documento, texto, fragmentos, indice_vectorial
 
-    modo = pedir_modo()
 
-    if modo == "pregunta_semantica":
-        ejecutar_pregunta_semantica(client, indice_vectorial)
-        return
+def main() -> None:
+    client = OpenAI(api_key=OPENAI_API_KEY)
 
-    indice_fragmento = pedir_fragmento(len(fragmentos))
+    documento_cargado = cargar_documento(client)
+    _, texto, fragmentos, indice_vectorial = documento_cargado
 
-    if indice_fragmento is None:
-        texto_objetivo = "\n\n".join(fragmentos)
-    else:
-        texto_objetivo = fragmentos[indice_fragmento]
+    while True:
+        modo = pedir_modo_menu()
 
-    if modo == "todos":
-        for modo_individual in MODOS_ANALISIS:
-            ejecutar_analisis(client, texto_objetivo, modo_individual)
-    else:
-        ejecutar_analisis(client, texto_objetivo, modo)
+        if modo == "salir":
+            print("\nSaliendo del programa.")
+            break
+
+        if modo == "cambiar_documento":
+            documento_cargado = cargar_documento(client)
+            _, texto, fragmentos, indice_vectorial = documento_cargado
+            continue
+
+        if modo == "pregunta_semantica":
+            ejecutar_pregunta_semantica(client, indice_vectorial)
+            continue
+
+        indice_fragmento = pedir_fragmento(len(fragmentos))
+
+        if indice_fragmento is None:
+            texto_objetivo = "\n\n".join(fragmentos)
+        else:
+            texto_objetivo = fragmentos[indice_fragmento]
+
+        if modo == "todos":
+            for modo_individual in MODOS_ANALISIS:
+                ejecutar_analisis(client, texto_objetivo, modo_individual)
+        else:
+            ejecutar_analisis(client, texto_objetivo, modo)
 
 
 if __name__ == "__main__":
