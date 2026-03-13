@@ -9,7 +9,6 @@ from app.utils import (
     mostrar_resultados_semanticos,
     pedir_archivo_txt,
 )
-from app.prompts import construir_prompt, construir_prompt_pregunta
 from app.embeddings import (
     indexar_fragmentos,
     recuperar_fragmentos_semanticos,
@@ -29,6 +28,7 @@ MODOS_MENU = [
     "pregunta_semantica",
     "ver_historial",
     "guardar_historial",
+    "ver_estado",
     "cambiar_documento",
     "salir",
 ]
@@ -80,7 +80,50 @@ def pedir_fragmento(num_fragmentos: int) -> int | None:
 
 def ejecutar_analisis(client: OpenAI, texto: str, modo: str) -> None:
     """Ejecuta un análisis y muestra el resultado."""
-    prompt = construir_prompt(texto, modo)
+    if modo == "resumen":
+        prompt = f"""
+Analiza el siguiente texto y devuelve:
+
+RESUMEN:
+Un resumen breve y claro de 3 a 5 líneas.
+
+Texto:
+{texto}
+"""
+    elif modo == "puntos_clave":
+        prompt = f"""
+Analiza el siguiente texto y devuelve:
+
+PUNTOS CLAVE:
+- Punto 1
+- Punto 2
+- Punto 3
+
+Texto:
+{texto}
+"""
+    elif modo == "clasificacion":
+        prompt = f"""
+Analiza el siguiente texto y devuelve:
+
+CLASIFICACIÓN TEMÁTICA:
+Indica cuál es el tema principal del texto y explícalo brevemente.
+
+Texto:
+{texto}
+"""
+    elif modo == "tono":
+        prompt = f"""
+Analiza el siguiente texto y devuelve:
+
+TONO DEL TEXTO:
+Describe el tono del texto y explica brevemente por qué.
+
+Texto:
+{texto}
+"""
+    else:
+        raise ValueError(f"Modo de análisis no válido: {modo}")
 
     response = client.responses.create(
         model="gpt-5-mini",
@@ -89,6 +132,22 @@ def ejecutar_analisis(client: OpenAI, texto: str, modo: str) -> None:
 
     mostrar_titulo(f"Resultado del modo: {modo}")
     print(response.output_text)
+
+
+def construir_contexto_conversacion(historial: list[dict], max_turnos: int = 3) -> str:
+    """Construye un bloque de conversación reciente para incluirlo en el prompt."""
+    if not historial:
+        return ""
+
+    ultimos_turnos = historial[-max_turnos:]
+    lineas = ["CONVERSACIÓN RECIENTE:"]
+
+    for item in ultimos_turnos:
+        lineas.append(f"Usuario: {item['pregunta']}")
+        lineas.append(f"Asistente: {item['respuesta']}")
+        lineas.append("")
+
+    return "\n".join(lineas)
 
 
 def ejecutar_pregunta_semantica(
@@ -124,22 +183,22 @@ def ejecutar_pregunta_semantica(
         contexto_conversacion = construir_contexto_conversacion(historial, max_turnos=3)
 
         prompt = f"""
-    Responde a la pregunta del usuario usando únicamente la información del contexto documental.
-    Apóyate también en la conversación reciente si ayuda a entender referencias como "eso", "lo anterior", "y qué más", etc.
-    Si el contexto documental no contiene la respuesta, di claramente que no aparece en el texto proporcionado.
+Responde a la pregunta del usuario usando únicamente la información del contexto documental.
+Apóyate también en la conversación reciente si ayuda a entender referencias como "eso", "lo anterior", "y qué más", etc.
+Si el contexto documental no contiene la respuesta, di claramente que no aparece en el texto proporcionado.
 
-    {contexto_conversacion}
+{contexto_conversacion}
 
-    CONTEXTO DOCUMENTAL:
-    {contexto_documental}
+CONTEXTO DOCUMENTAL:
+{contexto_documental}
 
-    PREGUNTA DEL USUARIO:
-    {pregunta}
+PREGUNTA DEL USUARIO:
+{pregunta}
 
-    FORMATO DE RESPUESTA:
-    RESPUESTA:
-    ...
-    """
+FORMATO DE RESPUESTA:
+RESPUESTA:
+...
+"""
 
         response = client.responses.create(
             model="gpt-5-mini",
@@ -159,21 +218,6 @@ def ejecutar_pregunta_semantica(
         mostrar_titulo("Respuesta a la pregunta")
         print(respuesta)
         print()
-
-def construir_contexto_conversacion(historial: list[dict], max_turnos: int = 3) -> str:
-    """Construye un bloque de conversación reciente para incluirlo en el prompt."""
-    if not historial:
-        return ""
-
-    ultimos_turnos = historial[-max_turnos:]
-    lineas = ["CONVERSACIÓN RECIENTE:"]
-
-    for item in ultimos_turnos:
-        lineas.append(f"Usuario: {item['pregunta']}")
-        lineas.append(f"Asistente: {item['respuesta']}")
-        lineas.append("")
-
-    return "\n".join(lineas)
 
 
 def mostrar_historial(historial: list[dict]) -> None:
@@ -230,7 +274,7 @@ def preparar_indice_vectorial(
     texto: str,
     fragmentos: list[str],
     ruta_indice: str
-) -> list[tuple[int, str, list[float]]]:
+) -> tuple[list[tuple[int, str, list[float]]], str]:
     """Carga el índice desde caché si sigue siendo válido; si no, lo regenera."""
     hash_actual = calcular_hash_texto(texto)
     cache = cargar_indice_vectorial(ruta_indice)
@@ -241,7 +285,7 @@ def preparar_indice_vectorial(
         if hash_guardado == hash_actual:
             mostrar_titulo("Índice vectorial cargado desde caché")
             print(f"Se han cargado {len(indice_vectorial)} fragmentos desde JSON.\n")
-            return indice_vectorial
+            return indice_vectorial, "cache"
 
         mostrar_titulo("Caché desactualizada")
         print("El documento ha cambiado. Se regenerará el índice.\n")
@@ -251,13 +295,29 @@ def preparar_indice_vectorial(
     guardar_indice_vectorial(indice_vectorial, ruta_indice, hash_actual)
     print(f"Se han indexado y guardado {len(indice_vectorial)} fragmentos.\n")
 
-    return indice_vectorial
+    return indice_vectorial, "regenerado"
+
+
+def mostrar_estado_sesion(
+    ruta_documento: str,
+    fragmentos: list[str],
+    historial: list[dict],
+    ruta_indice: str,
+    origen_indice: str
+) -> None:
+    """Muestra el estado actual de la sesión."""
+    mostrar_titulo("Estado de la sesión")
+    print(f"Documento activo: {ruta_documento}")
+    print(f"Número de fragmentos: {len(fragmentos)}")
+    print(f"Preguntas en historial: {len(historial)}")
+    print(f"Ruta de caché: {ruta_indice}")
+    print(f"Origen del índice actual: {origen_indice}\n")
 
 
 def cargar_documento(
     client: OpenAI
-) -> tuple[str, str, list[str], list[tuple[int, str, list[float]]]]:
-    """Carga un documento, sus fragmentos y su índice vectorial."""
+) -> tuple[str, str, list[str], list[tuple[int, str, list[float]]], str, str]:
+    """Carga un documento, sus fragmentos, su índice vectorial y metadatos de sesión."""
     ruta_documento = pedir_archivo_txt("data")
     ruta_indice = construir_ruta_indice(ruta_documento)
 
@@ -269,8 +329,10 @@ def cargar_documento(
 
     mostrar_fragmentos(fragmentos)
 
-    indice_vectorial = preparar_indice_vectorial(client, texto, fragmentos, ruta_indice)
-    return ruta_documento, texto, fragmentos, indice_vectorial
+    indice_vectorial, origen_indice = preparar_indice_vectorial(
+        client, texto, fragmentos, ruta_indice
+    )
+    return ruta_documento, texto, fragmentos, indice_vectorial, ruta_indice, origen_indice
 
 
 def main() -> None:
@@ -278,7 +340,14 @@ def main() -> None:
     historial: list[dict] = []
 
     documento_cargado = cargar_documento(client)
-    ruta_documento, texto, fragmentos, indice_vectorial = documento_cargado
+    (
+        ruta_documento,
+        texto,
+        fragmentos,
+        indice_vectorial,
+        ruta_indice,
+        origen_indice,
+    ) = documento_cargado
 
     while True:
         modo = pedir_modo_menu()
@@ -289,7 +358,14 @@ def main() -> None:
 
         if modo == "cambiar_documento":
             documento_cargado = cargar_documento(client)
-            ruta_documento, texto, fragmentos, indice_vectorial = documento_cargado
+            (
+                ruta_documento,
+                texto,
+                fragmentos,
+                indice_vectorial,
+                ruta_indice,
+                origen_indice,
+            ) = documento_cargado
             continue
 
         if modo == "pregunta_semantica":
@@ -305,6 +381,16 @@ def main() -> None:
             ruta_salida = f"exports/{nombre_base}_historial.txt"
             guardar_historial_en_txt(historial, ruta_salida)
             print(f"\nHistorial guardado en: {ruta_salida}\n")
+            continue
+
+        if modo == "ver_estado":
+            mostrar_estado_sesion(
+                ruta_documento,
+                fragmentos,
+                historial,
+                ruta_indice,
+                origen_indice,
+            )
             continue
 
         indice_fragmento = pedir_fragmento(len(fragmentos))
