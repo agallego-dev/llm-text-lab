@@ -221,11 +221,11 @@ RESPUESTA:
 
 
 def mostrar_historial(historial: list[dict]) -> None:
-    """Muestra el historial de preguntas y respuestas de la sesión."""
-    mostrar_titulo("Historial de la sesión")
+    """Muestra el historial de preguntas y respuestas del documento actual."""
+    mostrar_titulo("Historial del documento actual")
 
     if not historial:
-        print("Todavía no hay preguntas registradas.\n")
+        print("Todavía no hay preguntas registradas para este documento.\n")
         return
 
     for i, item in enumerate(historial, start=1):
@@ -241,16 +241,16 @@ def mostrar_historial(historial: list[dict]) -> None:
 
 
 def guardar_historial_en_txt(historial: list[dict], ruta_salida: str) -> None:
-    """Guarda el historial de la sesión en un archivo de texto."""
+    """Guarda el historial del documento actual en un archivo de texto."""
     path = Path(ruta_salida)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     lineas = []
 
     if not historial:
-        lineas.append("No hay preguntas registradas en esta sesión.\n")
+        lineas.append("No hay preguntas registradas para este documento.\n")
     else:
-        lineas.append("HISTORIAL DE LA SESIÓN\n")
+        lineas.append("HISTORIAL DEL DOCUMENTO ACTUAL\n")
         lineas.append("=" * 50 + "\n")
 
         for i, item in enumerate(historial, start=1):
@@ -301,15 +301,15 @@ def preparar_indice_vectorial(
 def mostrar_estado_sesion(
     ruta_documento: str,
     fragmentos: list[str],
-    historial: list[dict],
+    historial_documento: list[dict],
     ruta_indice: str,
     origen_indice: str
 ) -> None:
-    """Muestra el estado actual de la sesión."""
+    """Muestra el estado actual del documento activo."""
     mostrar_titulo("Estado de la sesión")
     print(f"Documento activo: {ruta_documento}")
     print(f"Número de fragmentos: {len(fragmentos)}")
-    print(f"Preguntas en historial: {len(historial)}")
+    print(f"Preguntas en historial del documento: {len(historial_documento)}")
     print(f"Ruta de caché: {ruta_indice}")
     print(f"Origen del índice actual: {origen_indice}\n")
 
@@ -317,7 +317,7 @@ def mostrar_estado_sesion(
 def cargar_documento(
     client: OpenAI
 ) -> tuple[str, str, list[str], list[tuple[int, str, list[float]]], str, str]:
-    """Carga un documento, sus fragmentos, su índice vectorial y metadatos de sesión."""
+    """Carga un documento, sus fragmentos, su índice vectorial y metadatos."""
     ruta_documento = pedir_archivo_txt("data")
     ruta_indice = construir_ruta_indice(ruta_documento)
 
@@ -337,7 +337,7 @@ def cargar_documento(
 
 def main() -> None:
     client = OpenAI(api_key=OPENAI_API_KEY)
-    historial: list[dict] = []
+    historiales_por_documento: dict[str, list[dict]] = {}
 
     documento_cargado = cargar_documento(client)
     (
@@ -349,7 +349,11 @@ def main() -> None:
         origen_indice,
     ) = documento_cargado
 
+    if ruta_documento not in historiales_por_documento:
+        historiales_por_documento[ruta_documento] = []
+
     while True:
+        historial_actual = historiales_por_documento[ruta_documento]
         modo = pedir_modo_menu()
 
         if modo == "salir":
@@ -366,20 +370,24 @@ def main() -> None:
                 ruta_indice,
                 origen_indice,
             ) = documento_cargado
+
+            if ruta_documento not in historiales_por_documento:
+                historiales_por_documento[ruta_documento] = []
+
             continue
 
         if modo == "pregunta_semantica":
-            ejecutar_pregunta_semantica(client, indice_vectorial, historial)
+            ejecutar_pregunta_semantica(client, indice_vectorial, historial_actual)
             continue
 
         if modo == "ver_historial":
-            mostrar_historial(historial)
+            mostrar_historial(historial_actual)
             continue
 
         if modo == "guardar_historial":
             nombre_base = Path(ruta_documento).stem
             ruta_salida = f"exports/{nombre_base}_historial.txt"
-            guardar_historial_en_txt(historial, ruta_salida)
+            guardar_historial_en_txt(historial_actual, ruta_salida)
             print(f"\nHistorial guardado en: {ruta_salida}\n")
             continue
 
@@ -387,7 +395,7 @@ def main() -> None:
             mostrar_estado_sesion(
                 ruta_documento,
                 fragmentos,
-                historial,
+                historial_actual,
                 ruta_indice,
                 origen_indice,
             )
