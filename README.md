@@ -8,6 +8,7 @@ Laboratorio de aprendizaje en Python para construir una herramienta de análisis
 
 El proyecto permite trabajar con documentos `.txt`, fragmentarlos, generar embeddings, recuperar fragmentos por similitud semántica y responder preguntas sobre su contenido usando la API de OpenAI.
 
+
 Además, incluye varias mejoras propias de una herramienta más realista:
 
 - selección de documentos
@@ -39,14 +40,22 @@ Además, incluye varias mejoras propias de una herramienta más realista:
 - Cambio de documento sin reiniciar el programa
 - Reintentos y validaciones básicas para entradas erróneas
 
+- Separación modular de responsabilidades:
+  - análisis
+  - chat semántico
+  - historial
+
 ## Estructura del proyecto
 
 ```text
 llm-text-lab/
 │
 ├── app/
+│   ├── analysis.py
+│   ├── chat.py
 │   ├── config.py
 │   ├── embeddings.py
+│   ├── history.py
 │   ├── main.py
 │   ├── prompts.py
 │   └── utils.py

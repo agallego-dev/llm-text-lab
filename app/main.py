@@ -6,16 +6,17 @@ from app.utils import (
     mostrar_titulo,
     dividir_en_fragmentos,
     mostrar_fragmentos,
-    mostrar_resultados_semanticos,
     pedir_archivo_txt,
 )
 from app.embeddings import (
     indexar_fragmentos,
-    recuperar_fragmentos_semanticos,
     guardar_indice_vectorial,
     cargar_indice_vectorial,
     calcular_hash_texto,
 )
+from app.analysis import ejecutar_analisis
+from app.chat import ejecutar_pregunta_semantica
+from app.history import mostrar_historial, guardar_historial_en_txt
 
 
 MODOS_ANALISIS = ["resumen", "puntos_clave", "clasificacion", "tono"]
@@ -76,197 +77,6 @@ def pedir_fragmento(num_fragmentos: int) -> int | None:
             continue
 
         return indice - 1
-
-
-def ejecutar_analisis(client: OpenAI, texto: str, modo: str) -> None:
-    """Ejecuta un análisis y muestra el resultado."""
-    if modo == "resumen":
-        prompt = f"""
-Analiza el siguiente texto y devuelve:
-
-RESUMEN:
-Un resumen breve y claro de 3 a 5 líneas.
-
-Texto:
-{texto}
-"""
-    elif modo == "puntos_clave":
-        prompt = f"""
-Analiza el siguiente texto y devuelve:
-
-PUNTOS CLAVE:
-- Punto 1
-- Punto 2
-- Punto 3
-
-Texto:
-{texto}
-"""
-    elif modo == "clasificacion":
-        prompt = f"""
-Analiza el siguiente texto y devuelve:
-
-CLASIFICACIÓN TEMÁTICA:
-Indica cuál es el tema principal del texto y explícalo brevemente.
-
-Texto:
-{texto}
-"""
-    elif modo == "tono":
-        prompt = f"""
-Analiza el siguiente texto y devuelve:
-
-TONO DEL TEXTO:
-Describe el tono del texto y explica brevemente por qué.
-
-Texto:
-{texto}
-"""
-    else:
-        raise ValueError(f"Modo de análisis no válido: {modo}")
-
-    response = client.responses.create(
-        model="gpt-5-mini",
-        input=prompt
-    )
-
-    mostrar_titulo(f"Resultado del modo: {modo}")
-    print(response.output_text)
-
-
-def construir_contexto_conversacion(historial: list[dict], max_turnos: int = 3) -> str:
-    """Construye un bloque de conversación reciente para incluirlo en el prompt."""
-    if not historial:
-        return ""
-
-    ultimos_turnos = historial[-max_turnos:]
-    lineas = ["CONVERSACIÓN RECIENTE:"]
-
-    for item in ultimos_turnos:
-        lineas.append(f"Usuario: {item['pregunta']}")
-        lineas.append(f"Asistente: {item['respuesta']}")
-        lineas.append("")
-
-    return "\n".join(lineas)
-
-
-def ejecutar_pregunta_semantica(
-    client: OpenAI,
-    indice_vectorial: list[tuple[int, str, list[float]]],
-    historial: list[dict]
-) -> None:
-    """Permite hacer varias preguntas semánticas sobre el mismo texto con memoria reciente."""
-    mostrar_titulo("Modo pregunta semántica")
-    print("Escribe tu pregunta sobre el documento.")
-    print("Escribe 'salir' para terminar este modo.\n")
-
-    while True:
-        pregunta = input("Pregunta: ").strip()
-
-        if not pregunta:
-            print("No se ha escrito ninguna pregunta. Inténtalo de nuevo.\n")
-            continue
-
-        if pregunta.lower() == "salir":
-            print("\nSaliendo del modo pregunta semántica.\n")
-            break
-
-        resultados = recuperar_fragmentos_semanticos(
-            client,
-            pregunta,
-            indice_vectorial,
-            top_k=2
-        )
-        mostrar_resultados_semanticos(resultados)
-
-        contexto_documental = "\n\n".join([fragmento for _, fragmento, _ in resultados])
-        contexto_conversacion = construir_contexto_conversacion(historial, max_turnos=3)
-
-        prompt = f"""
-Responde a la pregunta del usuario usando únicamente la información del contexto documental.
-Apóyate también en la conversación reciente si ayuda a entender referencias como "eso", "lo anterior", "y qué más", etc.
-Si el contexto documental no contiene la respuesta, di claramente que no aparece en el texto proporcionado.
-
-{contexto_conversacion}
-
-CONTEXTO DOCUMENTAL:
-{contexto_documental}
-
-PREGUNTA DEL USUARIO:
-{pregunta}
-
-FORMATO DE RESPUESTA:
-RESPUESTA:
-...
-"""
-
-        response = client.responses.create(
-            model="gpt-5-mini",
-            input=prompt
-        )
-
-        respuesta = response.output_text
-
-        historial.append(
-            {
-                "pregunta": pregunta,
-                "resultados": resultados,
-                "respuesta": respuesta,
-            }
-        )
-
-        mostrar_titulo("Respuesta a la pregunta")
-        print(respuesta)
-        print()
-
-
-def mostrar_historial(historial: list[dict]) -> None:
-    """Muestra el historial de preguntas y respuestas del documento actual."""
-    mostrar_titulo("Historial del documento actual")
-
-    if not historial:
-        print("Todavía no hay preguntas registradas para este documento.\n")
-        return
-
-    for i, item in enumerate(historial, start=1):
-        print(f"[{i}] Pregunta: {item['pregunta']}")
-        print("Fragmentos recuperados:")
-
-        for indice, fragmento, score in item["resultados"]:
-            print(f"  - [{indice + 1}] (score: {score:.4f}) {fragmento}")
-
-        print("Respuesta:")
-        print(item["respuesta"])
-        print("-" * 50)
-
-
-def guardar_historial_en_txt(historial: list[dict], ruta_salida: str) -> None:
-    """Guarda el historial del documento actual en un archivo de texto."""
-    path = Path(ruta_salida)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    lineas = []
-
-    if not historial:
-        lineas.append("No hay preguntas registradas para este documento.\n")
-    else:
-        lineas.append("HISTORIAL DEL DOCUMENTO ACTUAL\n")
-        lineas.append("=" * 50 + "\n")
-
-        for i, item in enumerate(historial, start=1):
-            lineas.append(f"[{i}] Pregunta: {item['pregunta']}\n")
-            lineas.append("Fragmentos recuperados:\n")
-
-            for indice, fragmento, score in item["resultados"]:
-                lineas.append(
-                    f"  - [{indice + 1}] (score: {score:.4f}) {fragmento}\n"
-                )
-
-            lineas.append("Respuesta:\n")
-            lineas.append(f"{item['respuesta']}\n")
-            lineas.append("-" * 50 + "\n")
-
-    path.write_text("".join(lineas), encoding="utf-8")
 
 
 def preparar_indice_vectorial(
