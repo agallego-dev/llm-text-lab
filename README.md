@@ -217,6 +217,10 @@ exports/oferta_historial.txt
 ### Pregunta sobre documento
 ![Pregunta y respuesta](assets/streamlit_question.png)
 
+### Interfaz Streamlit
+
+![Interfaz Streamlit](assets/streamlit_chat.png)
+
 ## Posibles mejoras futuras
 
 - interfaz gráfica o web

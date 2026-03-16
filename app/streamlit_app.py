@@ -85,8 +85,53 @@ RESPUESTA:
     return response.output_text, resultados
 
 
+def inicializar_estado() -> None:
+    """Inicializa el estado de sesión necesario."""
+    if "indice_vectorial" not in st.session_state:
+        st.session_state["indice_vectorial"] = None
+
+    if "origen_indice" not in st.session_state:
+        st.session_state["origen_indice"] = None
+
+    if "documento_activo" not in st.session_state:
+        st.session_state["documento_activo"] = None
+
+    if "historial_chat" not in st.session_state:
+        st.session_state["historial_chat"] = []
+
+
+def resetear_historial_si_cambia_documento(ruta_documento: str) -> None:
+    """Limpia el historial visual si cambia el documento activo."""
+    if st.session_state.get("documento_activo") != ruta_documento:
+        st.session_state["historial_chat"] = []
+
+
+def mostrar_historial_chat() -> None:
+    """Muestra el historial visual de preguntas y respuestas."""
+    historial = st.session_state.get("historial_chat", [])
+
+    if not historial:
+        st.info("Todavía no hay preguntas en esta sesión visual.")
+        return
+
+    for i, item in enumerate(historial, start=1):
+        with st.container():
+            st.markdown(f"### Pregunta {i}")
+            st.markdown(f"**Usuario:** {item['pregunta']}")
+            st.markdown("**Respuesta:**")
+            st.write(item["respuesta"])
+
+            with st.expander("Ver fragmentos recuperados"):
+                for indice, fragmento, score in item["resultados"]:
+                    st.markdown(f"**Fragmento {indice + 1} · score {score:.4f}**")
+                    st.write(fragmento)
+                    st.markdown("---")
+
+
 def main() -> None:
     st.set_page_config(page_title="llm-text-lab", page_icon="🧠", layout="wide")
+    inicializar_estado()
+
     st.title("🧠 llm-text-lab")
     st.caption("Asistente documental con recuperación semántica y caché por documento")
 
@@ -106,6 +151,8 @@ def main() -> None:
     ruta_documento = str(next(a for a in archivos if a.name == archivo_seleccionado))
     ruta_indice = construir_ruta_indice(ruta_documento)
 
+    resetear_historial_si_cambia_documento(ruta_documento)
+
     texto = leer_texto(ruta_documento)
     fragmentos = dividir_en_fragmentos(texto, max_palabras=20)
 
@@ -123,11 +170,15 @@ def main() -> None:
                 st.session_state["origen_indice"] = origen_indice
                 st.session_state["documento_activo"] = ruta_documento
 
-        if "origen_indice" in st.session_state:
+        if "origen_indice" in st.session_state and st.session_state["origen_indice"]:
             st.write(f"**Origen del índice:** {st.session_state['origen_indice']}")
 
+        if st.button("Limpiar historial visual"):
+            st.session_state["historial_chat"] = []
+            st.success("Historial visual limpiado.")
+
     if (
-        "indice_vectorial" not in st.session_state
+        st.session_state.get("indice_vectorial") is None
         or st.session_state.get("documento_activo") != ruta_documento
     ):
         st.info("Pulsa **Preparar índice** en la barra lateral para comenzar.")
@@ -138,22 +189,24 @@ def main() -> None:
     if st.button("Preguntar"):
         if not pregunta.strip():
             st.warning("Escribe una pregunta antes de continuar.")
-            return
+        else:
+            with st.spinner("Buscando fragmentos y generando respuesta..."):
+                respuesta, resultados = responder_pregunta(
+                    pregunta,
+                    st.session_state["indice_vectorial"],
+                    top_k=2
+                )
 
-        with st.spinner("Buscando fragmentos y generando respuesta..."):
-            respuesta, resultados = responder_pregunta(
-                pregunta,
-                st.session_state["indice_vectorial"],
-                top_k=2
+            st.session_state["historial_chat"].append(
+                {
+                    "pregunta": pregunta,
+                    "respuesta": respuesta,
+                    "resultados": resultados,
+                }
             )
 
-        st.subheader("Respuesta")
-        st.write(respuesta)
-
-        st.subheader("Fragmentos recuperados")
-        for indice, fragmento, score in resultados:
-            with st.expander(f"Fragmento {indice + 1} · score {score:.4f}"):
-                st.write(fragmento)
+    st.subheader("Conversación")
+    mostrar_historial_chat()
 
 
 if __name__ == "__main__":
