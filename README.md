@@ -17,6 +17,7 @@ Además, incluye varias mejoras propias de una herramienta más realista:
 - historial de sesión
 - exportación del historial
 - memoria conversacional reciente en preguntas encadenadas
+- interfaz visual inicial con Streamlit
 
 ## Funcionalidades actuales
 
@@ -58,7 +59,9 @@ llm-text-lab/
 │   ├── history.py
 │   ├── main.py
 │   ├── prompts.py
-│   └── utils.py
+│   ├── utils.py
+│   ├── streamlit_app.py
+│   └── __init__.py
 │
 ├── data/
 │   ├── ejemplo.txt
@@ -113,6 +116,11 @@ pip install -r requirements.txt
 
 ```bash
 python -m app.main
+```
+## Ejecución - app visual 
+
+```bash
+python -m streamlit run app/streamlit_app.py
 ```
 
 ## Flujo de uso
@@ -200,6 +208,14 @@ exports/oferta_historial.txt
 - La carpeta `exports/` contiene historiales exportados y no se versiona.
 - El archivo `.env` contiene información sensible y no debe subirse a GitHub.
 - El proyecto está pensado como laboratorio de aprendizaje y evolución incremental, no como producto final cerrado.
+
+## Capturas
+
+### Interfaz principal
+![Interfaz principal](assets/streamlit_home.png)
+
+### Pregunta sobre documento
+![Pregunta y respuesta](assets/streamlit_question.png)
 
 ## Posibles mejoras futuras
 
