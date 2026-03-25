@@ -30,17 +30,20 @@ def construir_ruta_indice(ruta_documento: str) -> str:
 def preparar_indice_vectorial(
     texto: str,
     fragmentos: list[str],
-    ruta_indice: str
+    ruta_indice: str,
+    forzar_reindexado: bool = False,
 ) -> tuple[list[tuple[int, str, list[float]]], str]:
     """Carga el índice desde caché si sigue siendo válido; si no, lo regenera."""
     hash_actual = calcular_hash_texto(texto)
-    cache = cargar_indice_vectorial(ruta_indice)
 
-    if cache is not None:
-        hash_guardado, indice_vectorial = cache
+    if not forzar_reindexado:
+        cache = cargar_indice_vectorial(ruta_indice)
 
-        if hash_guardado == hash_actual:
-            return indice_vectorial, "cache"
+        if cache is not None:
+            hash_guardado, indice_vectorial = cache
+
+            if hash_guardado == hash_actual:
+                return indice_vectorial, "cache"
 
     indice_vectorial = indexar_fragmentos(client, fragmentos)
     guardar_indice_vectorial(indice_vectorial, ruta_indice, hash_actual)
@@ -50,14 +53,14 @@ def preparar_indice_vectorial(
 def responder_pregunta(
     pregunta: str,
     indice_vectorial: list[tuple[int, str, list[float]]],
-    top_k: int = 2
+    top_k: int = 2,
 ) -> tuple[str, list[tuple[int, str, float]]]:
     """Recupera fragmentos relevantes y genera respuesta."""
     resultados = recuperar_fragmentos_semanticos(
         client,
         pregunta,
         indice_vectorial,
-        top_k=top_k
+        top_k=top_k,
     )
 
     contexto_documental = "\n\n".join([fragmento for _, fragmento, _ in resultados])
@@ -128,6 +131,15 @@ def mostrar_historial_chat() -> None:
                     st.markdown("---")
 
 
+def mostrar_fragmentos_documento(fragmentos: list[str]) -> None:
+    """Muestra todos los fragmentos del documento."""
+    with st.expander("Ver fragmentos del documento"):
+        for i, fragmento in enumerate(fragmentos, start=1):
+            st.markdown(f"**Fragmento {i}**")
+            st.write(fragmento)
+            st.markdown("---")
+
+
 def main() -> None:
     st.set_page_config(page_title="llm-text-lab", page_icon="🧠", layout="wide")
     inicializar_estado()
@@ -161,6 +173,8 @@ def main() -> None:
         st.write(f"**Documento:** {archivo_seleccionado}")
         st.write(f"**Fragmentos:** {len(fragmentos)}")
 
+        top_k = st.slider("Número de fragmentos a recuperar", min_value=1, max_value=5, value=2)
+
         if st.button("Preparar índice"):
             with st.spinner("Preparando índice vectorial..."):
                 indice_vectorial, origen_indice = preparar_indice_vectorial(
@@ -170,12 +184,24 @@ def main() -> None:
                 st.session_state["origen_indice"] = origen_indice
                 st.session_state["documento_activo"] = ruta_documento
 
+        if st.button("Reindexar manualmente"):
+            with st.spinner("Regenerando índice vectorial..."):
+                indice_vectorial, origen_indice = preparar_indice_vectorial(
+                    texto, fragmentos, ruta_indice, forzar_reindexado=True
+                )
+                st.session_state["indice_vectorial"] = indice_vectorial
+                st.session_state["origen_indice"] = origen_indice
+                st.session_state["documento_activo"] = ruta_documento
+                st.success("Índice regenerado correctamente.")
+
         if "origen_indice" in st.session_state and st.session_state["origen_indice"]:
             st.write(f"**Origen del índice:** {st.session_state['origen_indice']}")
 
         if st.button("Limpiar historial visual"):
             st.session_state["historial_chat"] = []
             st.success("Historial visual limpiado.")
+
+    mostrar_fragmentos_documento(fragmentos)
 
     if (
         st.session_state.get("indice_vectorial") is None
@@ -194,7 +220,7 @@ def main() -> None:
                 respuesta, resultados = responder_pregunta(
                     pregunta,
                     st.session_state["indice_vectorial"],
-                    top_k=2
+                    top_k=top_k,
                 )
 
             st.session_state["historial_chat"].append(

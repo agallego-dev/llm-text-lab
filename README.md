@@ -40,6 +40,9 @@ Además, incluye varias mejoras propias de una herramienta más realista:
 - Menú principal persistente
 - Cambio de documento sin reiniciar el programa
 - Reintentos y validaciones básicas para entradas erróneas
+- Control del número de fragmentos recuperados (`top_k`)
+- Reindexado manual desde la interfaz
+- Visualización de fragmentos del documento
 
 - Separación modular de responsabilidades:
   - análisis
@@ -220,6 +223,7 @@ exports/oferta_historial.txt
 ### Interfaz Streamlit
 
 ![Interfaz Streamlit](assets/streamlit_chat.png)
+![Interfaz Streamlit](assets/streamlit_chatfrag.png)
 
 ## Posibles mejoras futuras
 
