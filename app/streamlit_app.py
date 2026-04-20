@@ -27,6 +27,12 @@ def construir_ruta_indice(ruta_documento: str) -> str:
     return f"cache/{nombre_base}_indice_vectorial.json"
 
 
+def construir_ruta_export(ruta_documento: str) -> str:
+    """Construye una ruta de exportación específica para cada documento."""
+    nombre_base = Path(ruta_documento).stem
+    return f"exports/{nombre_base}_historial_streamlit.txt"
+
+
 def preparar_indice_vectorial(
     texto: str,
     fragmentos: list[str],
@@ -99,22 +105,24 @@ def inicializar_estado() -> None:
     if "documento_activo" not in st.session_state:
         st.session_state["documento_activo"] = None
 
-    if "historial_chat" not in st.session_state:
-        st.session_state["historial_chat"] = []
+    if "historiales_chat" not in st.session_state:
+        st.session_state["historiales_chat"] = {}
 
 
-def resetear_historial_si_cambia_documento(ruta_documento: str) -> None:
-    """Limpia el historial visual si cambia el documento activo."""
-    if st.session_state.get("documento_activo") != ruta_documento:
-        st.session_state["historial_chat"] = []
+def obtener_historial_documento(ruta_documento: str) -> list[dict]:
+    """Obtiene o crea el historial visual del documento actual."""
+    historiales = st.session_state["historiales_chat"]
+
+    if ruta_documento not in historiales:
+        historiales[ruta_documento] = []
+
+    return historiales[ruta_documento]
 
 
-def mostrar_historial_chat() -> None:
+def mostrar_historial_chat(historial: list[dict]) -> None:
     """Muestra el historial visual de preguntas y respuestas."""
-    historial = st.session_state.get("historial_chat", [])
-
     if not historial:
-        st.info("Todavía no hay preguntas en esta sesión visual.")
+        st.info("Todavía no hay preguntas en la sesión de este documento.")
         return
 
     for i, item in enumerate(historial, start=1):
@@ -140,6 +148,35 @@ def mostrar_fragmentos_documento(fragmentos: list[str]) -> None:
             st.markdown("---")
 
 
+def exportar_historial_a_txt(historial: list[dict], ruta_salida: str) -> None:
+    """Exporta el historial del documento actual a un fichero de texto."""
+    path = Path(ruta_salida)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    lineas = []
+
+    if not historial:
+        lineas.append("No hay preguntas registradas para este documento.\n")
+    else:
+        lineas.append("HISTORIAL STREAMLIT DEL DOCUMENTO\n")
+        lineas.append("=" * 50 + "\n")
+
+        for i, item in enumerate(historial, start=1):
+            lineas.append(f"[{i}] Pregunta: {item['pregunta']}\n")
+            lineas.append("Fragmentos recuperados:\n")
+
+            for indice, fragmento, score in item["resultados"]:
+                lineas.append(
+                    f"  - [{indice + 1}] (score: {score:.4f}) {fragmento}\n"
+                )
+
+            lineas.append("Respuesta:\n")
+            lineas.append(f"{item['respuesta']}\n")
+            lineas.append("-" * 50 + "\n")
+
+    path.write_text("".join(lineas), encoding="utf-8")
+
+
 def main() -> None:
     st.set_page_config(page_title="llm-text-lab", page_icon="🧠", layout="wide")
     inicializar_estado()
@@ -162,16 +199,17 @@ def main() -> None:
 
     ruta_documento = str(next(a for a in archivos if a.name == archivo_seleccionado))
     ruta_indice = construir_ruta_indice(ruta_documento)
-
-    resetear_historial_si_cambia_documento(ruta_documento)
+    ruta_export = construir_ruta_export(ruta_documento)
 
     texto = leer_texto(ruta_documento)
     fragmentos = dividir_en_fragmentos(texto, max_palabras=20)
+    historial_actual = obtener_historial_documento(ruta_documento)
 
     with st.sidebar:
         st.markdown("### Estado")
         st.write(f"**Documento:** {archivo_seleccionado}")
         st.write(f"**Fragmentos:** {len(fragmentos)}")
+        st.write(f"**Preguntas del documento:** {len(historial_actual)}")
 
         top_k = st.slider("Número de fragmentos a recuperar", min_value=1, max_value=5, value=2)
 
@@ -194,12 +232,16 @@ def main() -> None:
                 st.session_state["documento_activo"] = ruta_documento
                 st.success("Índice regenerado correctamente.")
 
+        if st.button("Limpiar historial visual de este documento"):
+            st.session_state["historiales_chat"][ruta_documento] = []
+            st.success("Historial visual del documento limpiado.")
+
+        if st.button("Exportar historial de este documento"):
+            exportar_historial_a_txt(historial_actual, ruta_export)
+            st.success(f"Historial exportado en: {ruta_export}")
+
         if "origen_indice" in st.session_state and st.session_state["origen_indice"]:
             st.write(f"**Origen del índice:** {st.session_state['origen_indice']}")
-
-        if st.button("Limpiar historial visual"):
-            st.session_state["historial_chat"] = []
-            st.success("Historial visual limpiado.")
 
     mostrar_fragmentos_documento(fragmentos)
 
@@ -223,7 +265,7 @@ def main() -> None:
                     top_k=top_k,
                 )
 
-            st.session_state["historial_chat"].append(
+            historial_actual.append(
                 {
                     "pregunta": pregunta,
                     "respuesta": respuesta,
@@ -231,8 +273,8 @@ def main() -> None:
                 }
             )
 
-    st.subheader("Conversación")
-    mostrar_historial_chat()
+    st.subheader("Conversación del documento actual")
+    mostrar_historial_chat(historial_actual)
 
 
 if __name__ == "__main__":

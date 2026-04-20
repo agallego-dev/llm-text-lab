@@ -4,10 +4,9 @@ Laboratorio de aprendizaje en Python para construir una herramienta de análisis
 
 ## Descripción
 
-`llm-text-lab` es un proyecto de consola orientado al aprendizaje progresivo de conceptos clave en aplicaciones con modelos de lenguaje.
+`llm-text-lab` es un proyecto de aprendizaje progresivo orientado a construir una herramienta de análisis documental con LLMs, tanto en consola como con una interfaz visual en Streamlit.
 
 El proyecto permite trabajar con documentos `.txt`, fragmentarlos, generar embeddings, recuperar fragmentos por similitud semántica y responder preguntas sobre su contenido usando la API de OpenAI.
-
 
 Además, incluye varias mejoras propias de una herramienta más realista:
 
@@ -17,7 +16,7 @@ Además, incluye varias mejoras propias de una herramienta más realista:
 - historial de sesión
 - exportación del historial
 - memoria conversacional reciente en preguntas encadenadas
-- interfaz visual inicial con Streamlit
+- interfaz visual con Streamlit
 
 ## Funcionalidades actuales
 
@@ -40,10 +39,13 @@ Además, incluye varias mejoras propias de una herramienta más realista:
 - Menú principal persistente
 - Cambio de documento sin reiniciar el programa
 - Reintentos y validaciones básicas para entradas erróneas
+- Interfaz visual con Streamlit
+- Historial visual independiente por documento
+- Exportación del historial desde la interfaz
+- Limpieza del historial visual por documento
 - Control del número de fragmentos recuperados (`top_k`)
 - Reindexado manual desde la interfaz
 - Visualización de fragmentos del documento
-
 - Separación modular de responsabilidades:
   - análisis
   - chat semántico
@@ -62,13 +64,18 @@ llm-text-lab/
 │   ├── history.py
 │   ├── main.py
 │   ├── prompts.py
-│   ├── utils.py
 │   ├── streamlit_app.py
+│   ├── utils.py
 │   └── __init__.py
 │
 ├── data/
 │   ├── ejemplo.txt
 │   └── oferta.txt
+│
+├── assets/
+│   ├── streamlit_home.png
+│   ├── streamlit_chat.png
+│   └── streamlit_chatfrag.png
 │
 ├── cache/          # ignorado por Git
 ├── exports/        # ignorado por Git
@@ -117,10 +124,13 @@ pip install -r requirements.txt
 
 ## Ejecución
 
+Modo consola:
+
 ```bash
 python -m app.main
 ```
-## Ejecución - app visual 
+
+Modo interfaz Streamlit:
 
 ```bash
 python -m streamlit run app/streamlit_app.py
@@ -130,14 +140,9 @@ python -m streamlit run app/streamlit_app.py
 
 1. Seleccionar un documento de la carpeta `data/`
 2. Cargar o generar su índice vectorial
-3. Elegir una opción del menú:
-   - análisis por modo
-   - pregunta semántica
-   - ver historial
-   - guardar historial
-   - cambiar documento
-   - salir
-4. Trabajar de forma interactiva durante la sesión
+3. Realizar preguntas o análisis sobre el documento
+4. Consultar el historial, exportarlo o cambiar de documento
+5. Repetir el proceso durante la sesión
 
 ## Ejemplos de uso
 
@@ -203,6 +208,7 @@ Por ejemplo:
 
 ```text
 exports/oferta_historial.txt
+exports/oferta_historial_streamlit.txt
 ```
 
 ## Notas
@@ -217,20 +223,18 @@ exports/oferta_historial.txt
 ### Interfaz principal
 ![Interfaz principal](assets/streamlit_home.png)
 
-### Pregunta sobre documento
-![Pregunta y respuesta](assets/streamlit_question.png)
+### Pregunta y respuesta sobre documento
+![Pregunta y respuesta](assets/streamlit_chat.png)
 
-### Interfaz Streamlit
-
-![Interfaz Streamlit](assets/streamlit_chat.png)
-![Interfaz Streamlit](assets/streamlit_chatfrag.png)
+### Fragmentos recuperados
+![Fragmentos recuperados](assets/streamlit_chatfrag.png)
 
 ## Posibles mejoras futuras
 
-- interfaz gráfica o web
 - soporte para PDF u otros formatos
 - almacenamiento más eficiente del índice vectorial
 - base de datos vectorial real
 - filtros más avanzados de recuperación
-- separación de historial por documento
 - evaluación de respuestas y calidad de recuperación
+- memoria conversacional visual más avanzada en Streamlit
+- exportación enriquecida desde la interfaz
