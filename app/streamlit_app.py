@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+from datetime import datetime
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
@@ -180,6 +181,51 @@ def exportar_historial_a_txt(historial: list[dict], ruta_salida: str) -> None:
     path.write_text("".join(lineas), encoding="utf-8")
 
 
+def obtener_info_indice(
+    ruta_documento: str,
+    ruta_indice: str,
+    fragmentos: list[str],
+    indice_vectorial: list[tuple[int, str, list[float]]] | None,
+) -> dict:
+    """Devuelve metadatos técnicos del documento e índice."""
+    path_doc = Path(ruta_documento)
+    path_idx = Path(ruta_indice)
+
+    info = {
+        "ruta_documento": ruta_documento,
+        "hash_documento": calcular_hash_texto(leer_texto(ruta_documento)),
+        "fragmentos_documento": len(fragmentos),
+        "ruta_indice": ruta_indice,
+        "indice_existe": path_idx.exists(),
+        "tamano_indice_kb": None,
+        "ultima_modificacion_indice": None,
+        "vectores_indexados": len(indice_vectorial) if indice_vectorial else 0,
+        "tamano_documento_kb": round(path_doc.stat().st_size / 1024, 2) if path_doc.exists() else None,
+    }
+
+    if path_idx.exists():
+        info["tamano_indice_kb"] = round(path_idx.stat().st_size / 1024, 2)
+        info["ultima_modificacion_indice"] = datetime.fromtimestamp(
+            path_idx.stat().st_mtime
+        ).strftime("%Y-%m-%d %H:%M:%S")
+
+    return info
+
+
+def mostrar_info_tecnica(info: dict) -> None:
+    """Muestra información técnica del documento e índice."""
+    with st.expander("Información técnica del documento e índice"):
+        st.markdown(f"**Ruta del documento:** `{info['ruta_documento']}`")
+        st.markdown(f"**Hash del documento:** `{info['hash_documento']}`")
+        st.markdown(f"**Fragmentos del documento:** {info['fragmentos_documento']}")
+        st.markdown(f"**Tamaño del documento:** {info['tamano_documento_kb']} KB")
+        st.markdown(f"**Ruta del índice:** `{info['ruta_indice']}`")
+        st.markdown(f"**Índice existe:** {info['indice_existe']}")
+        st.markdown(f"**Vectores indexados:** {info['vectores_indexados']}")
+        st.markdown(f"**Tamaño del índice:** {info['tamano_indice_kb']} KB")
+        st.markdown(f"**Última modificación del índice:** {info['ultima_modificacion_indice']}")
+
+
 def main() -> None:
     st.set_page_config(page_title="llm-text-lab", page_icon="🧠", layout="wide")
     inicializar_estado()
@@ -254,6 +300,14 @@ def main() -> None:
     ):
         st.info("Pulsa **Preparar índice** en la barra lateral para comenzar.")
         return
+
+    info_indice = obtener_info_indice(
+        ruta_documento,
+        ruta_indice,
+        fragmentos,
+        st.session_state.get("indice_vectorial"),
+    )
+    mostrar_info_tecnica(info_indice)
 
     tab_chat, tab_analisis = st.tabs(["Pregunta semántica", "Análisis del documento"])
 
