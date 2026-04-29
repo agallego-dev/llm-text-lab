@@ -25,10 +25,10 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 MODOS_ANALISIS = ["resumen", "puntos_clave", "clasificacion", "tono"]
 
 
-def construir_ruta_indice(ruta_documento: str) -> str:
-    """Construye una ruta de caché específica para cada documento."""
+def construir_ruta_indice(ruta_documento: str, max_palabras: int) -> str:
+    """Construye una ruta de caché específica para cada documento y chunk size."""
     nombre_base = Path(ruta_documento).stem
-    return f"cache/{nombre_base}_indice_vectorial.json"
+    return f"cache/{nombre_base}_chunks_{max_palabras}_indice_vectorial.json"
 
 
 def construir_ruta_export(ruta_documento: str) -> str:
@@ -112,6 +112,9 @@ def inicializar_estado() -> None:
     if "historiales_chat" not in st.session_state:
         st.session_state["historiales_chat"] = {}
 
+    if "chunk_size_activo" not in st.session_state:
+        st.session_state["chunk_size_activo"] = None
+
 
 def obtener_historial_documento(ruta_documento: str) -> list[dict]:
     """Obtiene o crea el historial visual del documento actual."""
@@ -186,6 +189,7 @@ def obtener_info_indice(
     ruta_indice: str,
     fragmentos: list[str],
     indice_vectorial: list[tuple[int, str, list[float]]] | None,
+    max_palabras: int,
 ) -> dict:
     """Devuelve metadatos técnicos del documento e índice."""
     path_doc = Path(ruta_documento)
@@ -195,6 +199,7 @@ def obtener_info_indice(
         "ruta_documento": ruta_documento,
         "hash_documento": calcular_hash_texto(leer_texto(ruta_documento)),
         "fragmentos_documento": len(fragmentos),
+        "chunk_size": max_palabras,
         "ruta_indice": ruta_indice,
         "indice_existe": path_idx.exists(),
         "tamano_indice_kb": None,
@@ -218,6 +223,7 @@ def mostrar_info_tecnica(info: dict) -> None:
         st.markdown(f"**Ruta del documento:** `{info['ruta_documento']}`")
         st.markdown(f"**Hash del documento:** `{info['hash_documento']}`")
         st.markdown(f"**Fragmentos del documento:** {info['fragmentos_documento']}")
+        st.markdown(f"**Chunk size actual:** {info['chunk_size']} palabras")
         st.markdown(f"**Tamaño del documento:** {info['tamano_documento_kb']} KB")
         st.markdown(f"**Ruta del índice:** `{info['ruta_indice']}`")
         st.markdown(f"**Índice existe:** {info['indice_existe']}")
@@ -247,11 +253,29 @@ def main() -> None:
     archivo_seleccionado = st.sidebar.selectbox("Documento", nombres_archivos)
 
     ruta_documento = str(next(a for a in archivos if a.name == archivo_seleccionado))
-    ruta_indice = construir_ruta_indice(ruta_documento)
     ruta_export = construir_ruta_export(ruta_documento)
 
+    with st.sidebar:
+        st.markdown("### Configuración de recuperación")
+
+        max_palabras = st.slider(
+            "Tamaño de fragmento (palabras)",
+            min_value=10,
+            max_value=100,
+            value=20,
+            step=5,
+        )
+
+        top_k = st.slider(
+            "Número de fragmentos a recuperar",
+            min_value=1,
+            max_value=5,
+            value=2
+        )
+
+    ruta_indice = construir_ruta_indice(ruta_documento, max_palabras)
     texto = leer_texto(ruta_documento)
-    fragmentos = dividir_en_fragmentos(texto, max_palabras=20)
+    fragmentos = dividir_en_fragmentos(texto, max_palabras=max_palabras)
     historial_actual = obtener_historial_documento(ruta_documento)
 
     with st.sidebar:
@@ -259,8 +283,6 @@ def main() -> None:
         st.write(f"**Documento:** {archivo_seleccionado}")
         st.write(f"**Fragmentos:** {len(fragmentos)}")
         st.write(f"**Preguntas del documento:** {len(historial_actual)}")
-
-        top_k = st.slider("Número de fragmentos a recuperar", min_value=1, max_value=5, value=2)
 
         if st.button("Preparar índice"):
             with st.spinner("Preparando índice vectorial..."):
@@ -270,6 +292,7 @@ def main() -> None:
                 st.session_state["indice_vectorial"] = indice_vectorial
                 st.session_state["origen_indice"] = origen_indice
                 st.session_state["documento_activo"] = ruta_documento
+                st.session_state["chunk_size_activo"] = max_palabras
 
         if st.button("Reindexar manualmente"):
             with st.spinner("Regenerando índice vectorial..."):
@@ -279,6 +302,7 @@ def main() -> None:
                 st.session_state["indice_vectorial"] = indice_vectorial
                 st.session_state["origen_indice"] = origen_indice
                 st.session_state["documento_activo"] = ruta_documento
+                st.session_state["chunk_size_activo"] = max_palabras
                 st.success("Índice regenerado correctamente.")
 
         if st.button("Limpiar historial visual de este documento"):
@@ -289,7 +313,7 @@ def main() -> None:
             exportar_historial_a_txt(historial_actual, ruta_export)
             st.success(f"Historial exportado en: {ruta_export}")
 
-        if "origen_indice" in st.session_state and st.session_state["origen_indice"]:
+        if st.session_state.get("origen_indice"):
             st.write(f"**Origen del índice:** {st.session_state['origen_indice']}")
 
     mostrar_fragmentos_documento(fragmentos)
@@ -297,8 +321,9 @@ def main() -> None:
     if (
         st.session_state.get("indice_vectorial") is None
         or st.session_state.get("documento_activo") != ruta_documento
+        or st.session_state.get("chunk_size_activo") != max_palabras
     ):
-        st.info("Pulsa **Preparar índice** en la barra lateral para comenzar.")
+        st.info("Pulsa **Preparar índice** en la barra lateral para comenzar con la configuración actual.")
         return
 
     info_indice = obtener_info_indice(
@@ -306,6 +331,7 @@ def main() -> None:
         ruta_indice,
         fragmentos,
         st.session_state.get("indice_vectorial"),
+        max_palabras,
     )
     mostrar_info_tecnica(info_indice)
 
