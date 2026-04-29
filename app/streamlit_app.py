@@ -17,8 +17,11 @@ from app.embeddings import (
     cargar_indice_vectorial,
     calcular_hash_texto,
 )
+from app.analysis import obtener_analisis
 
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+MODOS_ANALISIS = ["resumen", "puntos_clave", "clasificacion", "tono"]
 
 
 def construir_ruta_indice(ruta_documento: str) -> str:
@@ -252,29 +255,73 @@ def main() -> None:
         st.info("Pulsa **Preparar índice** en la barra lateral para comenzar.")
         return
 
-    pregunta = st.text_input("Haz una pregunta sobre el documento")
+    tab_chat, tab_analisis = st.tabs(["Pregunta semántica", "Análisis del documento"])
 
-    if st.button("Preguntar"):
-        if not pregunta.strip():
-            st.warning("Escribe una pregunta antes de continuar.")
-        else:
-            with st.spinner("Buscando fragmentos y generando respuesta..."):
-                respuesta, resultados = responder_pregunta(
-                    pregunta,
-                    st.session_state["indice_vectorial"],
-                    top_k=top_k,
+    with tab_chat:
+        pregunta = st.text_input("Haz una pregunta sobre el documento", key="pregunta_semantica_input")
+
+        if st.button("Preguntar"):
+            if not pregunta.strip():
+                st.warning("Escribe una pregunta antes de continuar.")
+            else:
+                with st.spinner("Buscando fragmentos y generando respuesta..."):
+                    respuesta, resultados = responder_pregunta(
+                        pregunta,
+                        st.session_state["indice_vectorial"],
+                        top_k=top_k,
+                    )
+
+                historial_actual.append(
+                    {
+                        "pregunta": pregunta,
+                        "respuesta": respuesta,
+                        "resultados": resultados,
+                    }
                 )
 
-            historial_actual.append(
-                {
-                    "pregunta": pregunta,
-                    "respuesta": respuesta,
-                    "resultados": resultados,
-                }
-            )
+        st.subheader("Conversación del documento actual")
+        mostrar_historial_chat(historial_actual)
 
-    st.subheader("Conversación del documento actual")
-    mostrar_historial_chat(historial_actual)
+    with tab_analisis:
+        st.subheader("Análisis directo del documento")
+
+        opciones_fragmento = ["Todo el documento"] + [
+            f"Fragmento {i + 1}" for i in range(len(fragmentos))
+        ]
+
+        fragmento_seleccionado = st.selectbox(
+            "Selecciona qué parte analizar",
+            opciones_fragmento,
+            key="fragmento_analisis_select"
+        )
+
+        modo_analisis = st.selectbox(
+            "Modo de análisis",
+            MODOS_ANALISIS + ["todos"],
+            key="modo_analisis_select"
+        )
+
+        if st.button("Analizar"):
+            if fragmento_seleccionado == "Todo el documento":
+                texto_objetivo = "\n\n".join(fragmentos)
+            else:
+                indice = int(fragmento_seleccionado.split()[-1]) - 1
+                texto_objetivo = fragmentos[indice]
+
+            with st.spinner("Generando análisis..."):
+                if modo_analisis == "todos":
+                    resultados_analisis = {}
+                    for modo in MODOS_ANALISIS:
+                        resultados_analisis[modo] = obtener_analisis(client, texto_objetivo, modo)
+
+                    st.subheader("Resultados del análisis")
+                    for modo, resultado in resultados_analisis.items():
+                        with st.expander(f"Modo: {modo}"):
+                            st.write(resultado)
+                else:
+                    resultado = obtener_analisis(client, texto_objetivo, modo_analisis)
+                    st.subheader(f"Resultado del modo: {modo_analisis}")
+                    st.write(resultado)
 
 
 if __name__ == "__main__":

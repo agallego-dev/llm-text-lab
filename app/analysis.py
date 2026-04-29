@@ -2,10 +2,10 @@ from openai import OpenAI
 from app.utils import mostrar_titulo
 
 
-def ejecutar_analisis(client: OpenAI, texto: str, modo: str) -> None:
-    """Ejecuta un análisis y muestra el resultado."""
+def construir_prompt_analisis(texto: str, modo: str) -> str:
+    """Construye el prompt de análisis según el modo."""
     if modo == "resumen":
-        prompt = f"""
+        return f"""
 Analiza el siguiente texto y devuelve:
 
 RESUMEN:
@@ -15,7 +15,7 @@ Texto:
 {texto}
 """
     elif modo == "puntos_clave":
-        prompt = f"""
+        return f"""
 Analiza el siguiente texto y devuelve:
 
 PUNTOS CLAVE:
@@ -27,7 +27,7 @@ Texto:
 {texto}
 """
     elif modo == "clasificacion":
-        prompt = f"""
+        return f"""
 Analiza el siguiente texto y devuelve:
 
 CLASIFICACIÓN TEMÁTICA:
@@ -37,7 +37,7 @@ Texto:
 {texto}
 """
     elif modo == "tono":
-        prompt = f"""
+        return f"""
 Analiza el siguiente texto y devuelve:
 
 TONO DEL TEXTO:
@@ -49,10 +49,22 @@ Texto:
     else:
         raise ValueError(f"Modo de análisis no válido: {modo}")
 
+
+def obtener_analisis(client: OpenAI, texto: str, modo: str) -> str:
+    """Devuelve el resultado del análisis como texto."""
+    prompt = construir_prompt_analisis(texto, modo)
+
     response = client.responses.create(
         model="gpt-5-mini",
         input=prompt
     )
 
+    return response.output_text
+
+
+def ejecutar_analisis(client: OpenAI, texto: str, modo: str) -> None:
+    """Ejecuta un análisis y lo muestra por consola."""
+    resultado = obtener_analisis(client, texto, modo)
+
     mostrar_titulo(f"Resultado del modo: {modo}")
-    print(response.output_text)
+    print(resultado)
