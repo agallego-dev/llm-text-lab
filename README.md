@@ -234,6 +234,9 @@ exports/oferta_historial_streamlit.txt
 ### Fragmentos recuperados
 ![Fragmentos recuperados](assets/streamlit_chatfrag.png)
 
+### Chat con PDF subido
+![Chat con PDF subido](assets/streamlit_pdf_chat.png)
+
 ## Posibles mejoras futuras
 
 - base de datos vectorial real
