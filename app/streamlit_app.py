@@ -115,6 +115,9 @@ def inicializar_estado() -> None:
     if "chunk_size_activo" not in st.session_state:
         st.session_state["chunk_size_activo"] = None
 
+    if "resumen_rapido_cache" not in st.session_state:
+        st.session_state["resumen_rapido_cache"] = {}
+
 
 def obtener_historial_documento(ruta_documento: str) -> list[dict]:
     """Obtiene o crea el historial visual del documento actual."""
@@ -238,6 +241,28 @@ def mostrar_info_tecnica(info: dict) -> None:
         st.markdown(f"**Última modificación del índice:** {info['ultima_modificacion_indice']}")
 
 
+def obtener_resumen_rapido(ruta_documento: str, texto: str) -> dict:
+    """Genera o recupera un resumen rápido del documento actual."""
+    cache = st.session_state["resumen_rapido_cache"]
+    hash_doc = calcular_hash_texto(texto)
+    clave = f"{ruta_documento}:{hash_doc}"
+
+    if clave in cache:
+        return cache[clave]
+
+    resumen = obtener_analisis(client, texto, "resumen")
+    clasificacion = obtener_analisis(client, texto, "clasificacion")
+    tono = obtener_analisis(client, texto, "tono")
+
+    resultado = {
+        "resumen": resumen,
+        "clasificacion": clasificacion,
+        "tono": tono,
+    }
+    cache[clave] = resultado
+    return resultado
+
+
 def main() -> None:
     st.set_page_config(page_title="llm-text-lab", page_icon="🧠", layout="wide")
     inicializar_estado()
@@ -341,7 +366,9 @@ def main() -> None:
     )
     mostrar_info_tecnica(info_indice)
 
-    tab_chat, tab_analisis = st.tabs(["Pregunta semántica", "Análisis del documento"])
+    tab_chat, tab_analisis, tab_resumen = st.tabs(
+        ["Pregunta semántica", "Análisis del documento", "Resumen rápido"]
+    )
 
     with tab_chat:
         pregunta = st.text_input("Haz una pregunta sobre el documento", key="pregunta_semantica_input")
@@ -411,6 +438,26 @@ def main() -> None:
                     resultado = obtener_analisis(client, texto_objetivo, modo_analisis)
                     st.subheader(f"Resultado del modo: {modo_analisis}")
                     st.write(resultado)
+
+    with tab_resumen:
+        st.subheader("Vista general del documento")
+
+        if st.button("Generar resumen rápido"):
+            with st.spinner("Generando resumen general del documento..."):
+                resumen_rapido = obtener_resumen_rapido(ruta_documento, texto)
+
+            st.markdown("### Resumen")
+            st.write(resumen_rapido["resumen"])
+
+            st.markdown("### Clasificación")
+            st.write(resumen_rapido["clasificacion"])
+
+            st.markdown("### Tono")
+            st.write(resumen_rapido["tono"])
+
+            col1, col2 = st.columns(2)
+            col1.metric("Fragmentos actuales", len(fragmentos))
+            col2.metric("Chunk size actual", max_palabras)
 
 
 if __name__ == "__main__":
