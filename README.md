@@ -50,6 +50,9 @@ Además, incluye varias mejoras propias de una herramienta más realista:
   - análisis
   - chat semántico
   - historial
+- Soporte inicial para documentos PDF subidos desde Streamlit
+- Extracción de texto desde PDF en la interfaz visual
+- Preguntas, análisis y resumen rápido sobre PDFs con texto seleccionable
 
 ## Estructura del proyecto
 
@@ -65,6 +68,7 @@ llm-text-lab/
 │   ├── main.py
 │   ├── prompts.py
 │   ├── streamlit_app.py
+│   ├── pdf_utils.py
 │   ├── utils.py
 │   └── __init__.py
 │
@@ -217,6 +221,7 @@ exports/oferta_historial_streamlit.txt
 - La carpeta `exports/` contiene historiales exportados y no se versiona.
 - El archivo `.env` contiene información sensible y no debe subirse a GitHub.
 - El proyecto está pensado como laboratorio de aprendizaje y evolución incremental, no como producto final cerrado.
+- El soporte PDF actual está orientado a archivos con texto seleccionable. Los PDFs escaneados o con estructuras complejas pueden requerir OCR o una extracción más avanzada.
 
 ## Capturas
 
@@ -231,10 +236,11 @@ exports/oferta_historial_streamlit.txt
 
 ## Posibles mejoras futuras
 
-- soporte para PDF u otros formatos
-- almacenamiento más eficiente del índice vectorial
 - base de datos vectorial real
 - filtros más avanzados de recuperación
 - evaluación de respuestas y calidad de recuperación
 - memoria conversacional visual más avanzada en Streamlit
 - exportación enriquecida desde la interfaz
+- soporte más robusto para PDFs complejos o escaneados
+- fallback de extracción con librerías adicionales
+- OCR para PDFs basados en imagen
