@@ -263,6 +263,48 @@ def obtener_resumen_rapido(ruta_documento: str, texto: str) -> dict:
     return resultado
 
 
+def mostrar_resultados_comparacion(
+    pregunta: str,
+    indice_vectorial: list[tuple[int, str, list[float]]],
+    top_k_a: int,
+    top_k_b: int,
+) -> None:
+    """Muestra dos respuestas comparadas con configuraciones distintas de top_k."""
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(f"## Comparación A · top_k = {top_k_a}")
+        with st.spinner("Generando comparación A..."):
+            respuesta_a, resultados_a = responder_pregunta(
+                pregunta,
+                indice_vectorial,
+                top_k=top_k_a,
+            )
+        st.write(respuesta_a)
+
+        with st.expander("Ver fragmentos recuperados (A)"):
+            for indice, fragmento, score in resultados_a:
+                st.markdown(f"**Fragmento {indice + 1} · score {score:.4f}**")
+                st.write(fragmento)
+                st.markdown("---")
+
+    with col2:
+        st.markdown(f"## Comparación B · top_k = {top_k_b}")
+        with st.spinner("Generando comparación B..."):
+            respuesta_b, resultados_b = responder_pregunta(
+                pregunta,
+                indice_vectorial,
+                top_k=top_k_b,
+            )
+        st.write(respuesta_b)
+
+        with st.expander("Ver fragmentos recuperados (B)"):
+            for indice, fragmento, score in resultados_b:
+                st.markdown(f"**Fragmento {indice + 1} · score {score:.4f}**")
+                st.write(fragmento)
+                st.markdown("---")
+
+
 def main() -> None:
     st.set_page_config(page_title="llm-text-lab", page_icon="🧠", layout="wide")
     inicializar_estado()
@@ -366,8 +408,8 @@ def main() -> None:
     )
     mostrar_info_tecnica(info_indice)
 
-    tab_chat, tab_analisis, tab_resumen = st.tabs(
-        ["Pregunta semántica", "Análisis del documento", "Resumen rápido"]
+    tab_chat, tab_analisis, tab_resumen, tab_comparador = st.tabs(
+        ["Pregunta semántica", "Análisis del documento", "Resumen rápido", "Comparador"]
     )
 
     with tab_chat:
@@ -458,6 +500,33 @@ def main() -> None:
             col1, col2 = st.columns(2)
             col1.metric("Fragmentos actuales", len(fragmentos))
             col2.metric("Chunk size actual", max_palabras)
+
+    with tab_comparador:
+        st.subheader("Comparador de configuraciones")
+
+        pregunta_comp = st.text_input(
+            "Escribe una pregunta para comparar respuestas",
+            key="pregunta_comparador_input"
+        )
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            top_k_a = st.slider("top_k A", min_value=1, max_value=5, value=1, key="topk_a")
+        with col_b:
+            top_k_b = st.slider("top_k B", min_value=1, max_value=5, value=3, key="topk_b")
+
+        if st.button("Comparar respuestas"):
+            if not pregunta_comp.strip():
+                st.warning("Escribe una pregunta para comparar.")
+            elif top_k_a == top_k_b:
+                st.warning("Elige valores distintos de top_k para que la comparación tenga sentido.")
+            else:
+                mostrar_resultados_comparacion(
+                    pregunta_comp,
+                    st.session_state["indice_vectorial"],
+                    top_k_a,
+                    top_k_b,
+                )
 
 
 if __name__ == "__main__":
