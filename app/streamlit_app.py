@@ -136,6 +136,9 @@ def mostrar_historial_chat(historial: list[dict]) -> None:
         with st.container():
             st.markdown(f"### Pregunta {i}")
             st.markdown(f"**Usuario:** {item['pregunta']}")
+            st.caption(
+                f"Hora: {item['timestamp']} · chunk_size: {item['chunk_size']} · top_k: {item['top_k']}"
+            )
             st.markdown("**Respuesta:**")
             st.write(item["respuesta"])
 
@@ -170,6 +173,9 @@ def exportar_historial_a_txt(historial: list[dict], ruta_salida: str) -> None:
 
         for i, item in enumerate(historial, start=1):
             lineas.append(f"[{i}] Pregunta: {item['pregunta']}\n")
+            lineas.append(
+                f"Hora: {item['timestamp']} | chunk_size: {item['chunk_size']} | top_k: {item['top_k']}\n"
+            )
             lineas.append("Fragmentos recuperados:\n")
 
             for indice, fragmento, score in item["resultados"]:
@@ -356,6 +362,9 @@ def main() -> None:
                         "pregunta": pregunta,
                         "respuesta": respuesta,
                         "resultados": resultados,
+                        "top_k": top_k,
+                        "chunk_size": max_palabras,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     }
                 )
 
